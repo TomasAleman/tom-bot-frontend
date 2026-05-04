@@ -1,0 +1,59 @@
+export function fmtFecha(iso) {
+  if (!iso) return '';
+  const s = String(iso);
+  if (s.length >= 10 && s[4] === '-' && s[7] === '-') {
+    const [y, m, d] = s.slice(0, 10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('es-AR');
+  } catch {
+    return s;
+  }
+}
+
+export function fmtFechaCorta(iso) {
+  if (!iso) return '';
+  const s = String(iso);
+  if (s.length >= 10) {
+    const [, m, d] = s.slice(0, 10).split('-');
+    return `${d}/${m}`;
+  }
+  return s;
+}
+
+export function fmtHora(horaInt) {
+  if (horaInt === null || horaInt === undefined) return '';
+  const n = Number(horaInt);
+  if (Number.isNaN(n)) return '';
+  return `${n.toString().padStart(2, '0')}hs`;
+}
+
+export function fmtTimestamp(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
+  } catch {
+    return String(iso);
+  }
+}
+
+export function clsBadge(estado) {
+  switch ((estado || '').toLowerCase()) {
+    case 'confirmada': return 'bg-emerald-100 text-emerald-800 ring-emerald-600/20';
+    case 'cancelada':  return 'bg-rose-100 text-rose-800 ring-rose-600/20';
+    case 'noshow':     return 'bg-amber-100 text-amber-800 ring-amber-600/20';
+    default:           return 'bg-slate-100 text-slate-700 ring-slate-500/20';
+  }
+}
+
+export function labelEstado(estado) {
+  switch ((estado || '').toLowerCase()) {
+    case 'confirmada': return 'Confirmada';
+    case 'cancelada':  return 'Cancelada';
+    case 'noshow':     return 'No-show';
+    default:           return estado || '—';
+  }
+}
