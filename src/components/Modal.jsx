@@ -35,7 +35,7 @@ export default function Modal({ open, onClose, title, children, footer }) {
         </div>
         <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
         {footer ? (
-          <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-5 py-3 safe-bottom sm:flex-row sm:justify-end">
+          <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-5 py-4 pb-[max(env(safe-area-inset-bottom),1rem)] sm:flex-row sm:justify-end sm:py-4">
             {footer}
           </div>
         ) : null}

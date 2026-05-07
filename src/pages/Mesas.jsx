@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, apiError } from '../lib/api.js';
 import Modal from '../components/Modal.jsx';
-import { Button, Input, Label, ErrorText } from '../components/Field.jsx';
+import { Button, Input, Label, Select, ErrorText } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
 
 const EMPTY_MESA = {
@@ -14,6 +14,39 @@ const EMPTY_MESA = {
   horario_tarde: '',
   activa: true,
 };
+
+// Opciones HH:MM cada 15 minutos para los selects de turnos.
+const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => {
+  const h = String(Math.floor(i / 4)).padStart(2, '0');
+  const m = String((i % 4) * 15).padStart(2, '0');
+  return `${h}:${m}`;
+});
+
+const HORARIO_REGEX = /^([01]?\d|2[0-3]):[0-5]\d-([01]?\d|2[0-3]):[0-5]\d$/;
+const HORARIO_LEGACY_REGEX = /^\d{1,2}-\d{1,2}$/;
+
+// Convierte un string "HH:MM-HH:MM" (o legacy "8-11") a { inicio, fin } en formato HH:MM.
+function parseTurno(s) {
+  if (!s) return { inicio: '', fin: '' };
+  const trimmed = String(s).trim();
+  if (HORARIO_REGEX.test(trimmed)) {
+    const [ini, fin] = trimmed.split('-');
+    return { inicio: ini, fin };
+  }
+  if (HORARIO_LEGACY_REGEX.test(trimmed)) {
+    const [a, b] = trimmed.split('-');
+    return {
+      inicio: `${a.padStart(2, '0')}:00`,
+      fin: `${b.padStart(2, '0')}:00`,
+    };
+  }
+  return { inicio: '', fin: '' };
+}
+
+function toMinutos(hhmm) {
+  const [h, m] = hhmm.split(':').map((n) => parseInt(n, 10));
+  return h * 60 + m;
+}
 
 export default function Mesas() {
   const qc = useQueryClient();
@@ -100,26 +133,35 @@ export default function Mesas() {
 
 function MesaModal({ mesa, onClose, onSaved }) {
   const [form, setForm] = useState(mesa || {});
+  const [turnos, setTurnos] = useState({
+    manana:   { inicio: '', fin: '' },
+    mediodia: { inicio: '', fin: '' },
+    tarde:    { inicio: '', fin: '' },
+  });
   const [error, setError] = useState(null);
   const isNew = !mesa?.id;
-  const HORARIO_REGEX = /^\d{1,2}-\d{1,2}$/;
 
   useEffect(() => {
     if (mesa) {
       setForm({ ...mesa });
+      setTurnos({
+        manana:   parseTurno(mesa.horario_manana),
+        mediodia: parseTurno(mesa.horario_mediodia),
+        tarde:    parseTurno(mesa.horario_tarde),
+      });
       setError(null);
     }
   }, [mesa]);
+
+  const setTurno = (key, parte, value) => {
+    setTurnos((t) => ({ ...t, [key]: { ...t[key], [parte]: value } }));
+  };
 
   const mut = useMutation({
     mutationFn: async () => {
       const numeroMesa = String(form.numero_mesa ?? '').trim();
       const minPersonas = Number.parseInt(String(form.min_personas ?? ''), 10);
       const maxPersonas = Number.parseInt(String(form.max_personas ?? ''), 10);
-
-      const hm = String(form.horario_manana ?? '').trim();
-      const hmd = String(form.horario_mediodia ?? '').trim();
-      const ht = String(form.horario_tarde ?? '').trim();
 
       if (!numeroMesa) throw new Error('El número o nombre de la mesa es requerido.');
       if (!Number.isInteger(minPersonas)) throw new Error('Mín. personas debe ser un número entero.');
@@ -128,17 +170,22 @@ function MesaModal({ mesa, onClose, onSaved }) {
       if (maxPersonas < 1 || maxPersonas > 100) throw new Error('Máx. personas debe estar entre 1 y 100.');
       if (maxPersonas < minPersonas) throw new Error('Máx. personas debe ser mayor o igual a mín. personas.');
 
-      function normHorario(v) {
-        if (!v) return null;
-        if (!HORARIO_REGEX.test(v)) {
-          throw new Error('Formato de horarios inválido. Usá desde-hasta (ej: 12-15).');
+      function normTurno(t, label) {
+        const ini = (t.inicio || '').trim();
+        const fin = (t.fin || '').trim();
+        if (!ini && !fin) return null;
+        if (!ini || !fin) {
+          throw new Error(`${label}: completá inicio y fin, o dejá ambos vacíos.`);
         }
-        return v;
+        if (toMinutos(fin) <= toMinutos(ini)) {
+          throw new Error(`${label}: el fin del turno debe ser posterior al inicio.`);
+        }
+        return `${ini}-${fin}`;
       }
 
-      const hmN = normHorario(hm);
-      const hmdN = normHorario(hmd);
-      const htN = normHorario(ht);
+      const hmN = normTurno(turnos.manana, 'Primer turno');
+      const hmdN = normTurno(turnos.mediodia, 'Segundo turno');
+      const htN = normTurno(turnos.tarde, 'Tercer turno');
       if (!hmN && !hmdN && !htN) {
         throw new Error('Tenés que completar al menos 1 turno.');
       }
@@ -198,25 +245,28 @@ function MesaModal({ mesa, onClose, onSaved }) {
             />
           </div>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-xs text-slate-500">
-            Formato horarios: <code>desde-hasta</code> en hora 24h. Ej: <code>12-15</code>. Podés dejar turnos vacíos, pero tenés que completar al menos 1.
+            El inicio es inclusivo y el fin exclusivo (ej: 20:00–23:00 admite reservas hasta las 22). Podés dejar turnos vacíos, pero tenés que completar al menos 1.
           </p>
-          <div>
-            <Label htmlFor="m-mn">Primer turno</Label>
-            <Input id="m-mn" placeholder="ej: 8-11" value={form.horario_manana || ''}
-              onChange={(e) => setForm({ ...form, horario_manana: e.target.value })} />
-          </div>
-          <div>
-            <Label htmlFor="m-md">Segundo turno</Label>
-            <Input id="m-md" placeholder="ej: 12-15" value={form.horario_mediodia || ''}
-              onChange={(e) => setForm({ ...form, horario_mediodia: e.target.value })} />
-          </div>
-          <div>
-            <Label htmlFor="m-tr">Tercer turno</Label>
-            <Input id="m-tr" placeholder="ej: 20-23" value={form.horario_tarde || ''}
-              onChange={(e) => setForm({ ...form, horario_tarde: e.target.value })} />
-          </div>
+          <TurnoRow
+            label="Primer turno"
+            idPrefix="m-mn"
+            value={turnos.manana}
+            onChange={(parte, v) => setTurno('manana', parte, v)}
+          />
+          <TurnoRow
+            label="Segundo turno"
+            idPrefix="m-md"
+            value={turnos.mediodia}
+            onChange={(parte, v) => setTurno('mediodia', parte, v)}
+          />
+          <TurnoRow
+            label="Tercer turno"
+            idPrefix="m-tr"
+            value={turnos.tarde}
+            onChange={(parte, v) => setTurno('tarde', parte, v)}
+          />
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
@@ -230,5 +280,41 @@ function MesaModal({ mesa, onClose, onSaved }) {
         <ErrorText>{error}</ErrorText>
       </div>
     </Modal>
+  );
+}
+
+function TurnoRow({ label, idPrefix, value, onChange }) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <span className="block text-xs text-slate-500">Inicio</span>
+          <Select
+            id={`${idPrefix}-ini`}
+            value={value.inicio}
+            onChange={(e) => onChange('inicio', e.target.value)}
+          >
+            <option value="">—</option>
+            {TIME_OPTIONS.map((t) => (
+              <option key={`${idPrefix}-ini-${t}`} value={t}>{t}</option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <span className="block text-xs text-slate-500">Fin</span>
+          <Select
+            id={`${idPrefix}-fin`}
+            value={value.fin}
+            onChange={(e) => onChange('fin', e.target.value)}
+          >
+            <option value="">—</option>
+            {TIME_OPTIONS.map((t) => (
+              <option key={`${idPrefix}-fin-${t}`} value={t}>{t}</option>
+            ))}
+          </Select>
+        </div>
+      </div>
+    </div>
   );
 }
