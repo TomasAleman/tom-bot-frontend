@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api, apiError } from '../lib/api.js';
 import EstadoBadge from '../components/EstadoBadge.jsx';
 import { Input, Select, Button } from '../components/Field.jsx';
@@ -43,7 +43,7 @@ export default function Reservas() {
   const { data, isLoading, isError, error, isFetching } = useQuery({
     queryKey: ['reservas', queryParams],
     queryFn: async () => (await api.get(`/reservas?${queryParams}`)).data,
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   const aplicar = (next) => {
@@ -55,7 +55,10 @@ export default function Reservas() {
     setPage(1);
   };
 
-  const items = data?.data || [];
+  const items = useMemo(
+    () => Array.from(new Map((data?.data || []).map((r) => [r.id, r])).values()),
+    [data]
+  );
   const total = data?.meta?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 

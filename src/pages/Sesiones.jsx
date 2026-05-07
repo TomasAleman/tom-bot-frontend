@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api, apiError } from '../lib/api.js';
 import { Input, Select, Button } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
@@ -25,10 +25,13 @@ export default function Sesiones() {
   const { data, isLoading, isError, error, isFetching } = useQuery({
     queryKey: ['sesiones', queryParams],
     queryFn: async () => (await api.get(`/sesiones?${queryParams}`)).data,
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
-  const items = data?.data || [];
+  const items = useMemo(
+    () => Array.from(new Map((data?.data || []).map((s) => [s.telefono, s])).values()),
+    [data]
+  );
   const total = data?.meta?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
