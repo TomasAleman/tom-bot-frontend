@@ -65,9 +65,9 @@ export default function Mesas() {
                 </div>
               </div>
               <ul className="mt-3 space-y-1 text-xs text-slate-600">
-                <li><b>Mañana:</b> {m.horario_manana || '—'}</li>
-                <li><b>Mediodía:</b> {m.horario_mediodia || '—'}</li>
-                <li><b>Tarde:</b> {m.horario_tarde || '—'}</li>
+                <li><b>Primer turno:</b> {m.horario_manana || '—'}</li>
+                <li><b>Segundo turno:</b> {m.horario_mediodia || '—'}</li>
+                <li><b>Tercer turno:</b> {m.horario_tarde || '—'}</li>
               </ul>
               <div className="mt-3 flex gap-2">
                 <Button variant="secondary" onClick={() => setEditing({ ...m })} className="flex-1">
@@ -136,13 +136,20 @@ function MesaModal({ mesa, onClose, onSaved }) {
         return v;
       }
 
+      const hmN = normHorario(hm);
+      const hmdN = normHorario(hmd);
+      const htN = normHorario(ht);
+      if (!hmN && !hmdN && !htN) {
+        throw new Error('Tenés que completar al menos 1 turno.');
+      }
+
       const payload = {
         numero_mesa: numeroMesa,
         min_personas: minPersonas,
         max_personas: maxPersonas,
-        horario_manana: normHorario(hm),
-        horario_mediodia: normHorario(hmd),
-        horario_tarde: normHorario(ht),
+        horario_manana: hmN,
+        horario_mediodia: hmdN,
+        horario_tarde: htN,
         activa: Boolean(form.activa),
       };
       if (isNew) {
@@ -192,19 +199,21 @@ function MesaModal({ mesa, onClose, onSaved }) {
           </div>
         </div>
         <div className="space-y-2">
-          <p className="text-xs text-slate-500">Formato horarios: <code>desde-hasta</code> en hora 24h. Ej: <code>12-15</code>. Dejá vacío si no aplica.</p>
+          <p className="text-xs text-slate-500">
+            Formato horarios: <code>desde-hasta</code> en hora 24h. Ej: <code>12-15</code>. Podés dejar turnos vacíos, pero tenés que completar al menos 1.
+          </p>
           <div>
-            <Label htmlFor="m-mn">Mañana</Label>
+            <Label htmlFor="m-mn">Primer turno</Label>
             <Input id="m-mn" placeholder="ej: 8-11" value={form.horario_manana || ''}
               onChange={(e) => setForm({ ...form, horario_manana: e.target.value })} />
           </div>
           <div>
-            <Label htmlFor="m-md">Mediodía</Label>
+            <Label htmlFor="m-md">Segundo turno</Label>
             <Input id="m-md" placeholder="ej: 12-15" value={form.horario_mediodia || ''}
               onChange={(e) => setForm({ ...form, horario_mediodia: e.target.value })} />
           </div>
           <div>
-            <Label htmlFor="m-tr">Tarde / noche</Label>
+            <Label htmlFor="m-tr">Tercer turno</Label>
             <Input id="m-tr" placeholder="ej: 20-23" value={form.horario_tarde || ''}
               onChange={(e) => setForm({ ...form, horario_tarde: e.target.value })} />
           </div>
