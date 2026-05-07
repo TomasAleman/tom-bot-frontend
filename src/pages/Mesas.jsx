@@ -102,6 +102,7 @@ function MesaModal({ mesa, onClose, onSaved }) {
   const [form, setForm] = useState(mesa || {});
   const [error, setError] = useState(null);
   const isNew = !mesa?.id;
+  const HORARIO_REGEX = /^\d{1,2}-\d{1,2}$/;
 
   useEffect(() => {
     if (mesa) {
@@ -112,13 +113,36 @@ function MesaModal({ mesa, onClose, onSaved }) {
 
   const mut = useMutation({
     mutationFn: async () => {
+      const numeroMesa = String(form.numero_mesa ?? '').trim();
+      const minPersonas = Number.parseInt(String(form.min_personas ?? ''), 10);
+      const maxPersonas = Number.parseInt(String(form.max_personas ?? ''), 10);
+
+      const hm = String(form.horario_manana ?? '').trim();
+      const hmd = String(form.horario_mediodia ?? '').trim();
+      const ht = String(form.horario_tarde ?? '').trim();
+
+      if (!numeroMesa) throw new Error('El número o nombre de la mesa es requerido.');
+      if (!Number.isInteger(minPersonas)) throw new Error('Mín. personas debe ser un número entero.');
+      if (!Number.isInteger(maxPersonas)) throw new Error('Máx. personas debe ser un número entero.');
+      if (minPersonas < 0 || minPersonas > 50) throw new Error('Mín. personas debe estar entre 0 y 50.');
+      if (maxPersonas < 1 || maxPersonas > 100) throw new Error('Máx. personas debe estar entre 1 y 100.');
+      if (maxPersonas < minPersonas) throw new Error('Máx. personas debe ser mayor o igual a mín. personas.');
+
+      function normHorario(v) {
+        if (!v) return null;
+        if (!HORARIO_REGEX.test(v)) {
+          throw new Error('Formato de horarios inválido. Usá desde-hasta (ej: 12-15).');
+        }
+        return v;
+      }
+
       const payload = {
-        numero_mesa: String(form.numero_mesa).trim(),
-        min_personas: Number(form.min_personas),
-        max_personas: Number(form.max_personas),
-        horario_manana:   form.horario_manana   || null,
-        horario_mediodia: form.horario_mediodia || null,
-        horario_tarde:    form.horario_tarde    || null,
+        numero_mesa: numeroMesa,
+        min_personas: minPersonas,
+        max_personas: maxPersonas,
+        horario_manana: normHorario(hm),
+        horario_mediodia: normHorario(hmd),
+        horario_tarde: normHorario(ht),
         activa: Boolean(form.activa),
       };
       if (isNew) {
