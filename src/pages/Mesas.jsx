@@ -101,6 +101,7 @@ export default function Mesas() {
 function MesaModal({ mesa, onClose, onSaved }) {
   const [form, setForm] = useState(mesa || {});
   const [error, setError] = useState(null);
+  const isNew = !mesa?.id;
 
   useEffect(() => {
     if (mesa) {
@@ -108,9 +109,6 @@ function MesaModal({ mesa, onClose, onSaved }) {
       setError(null);
     }
   }, [mesa]);
-
-  if (!mesa) return null;
-  const isNew = !mesa.id;
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -131,6 +129,8 @@ function MesaModal({ mesa, onClose, onSaved }) {
     onSuccess: () => { onSaved?.(); onClose(); },
     onError: (err) => setError(apiError(err, 'No se pudo guardar')),
   });
+
+  if (!mesa) return null;
 
   return (
     <Modal
