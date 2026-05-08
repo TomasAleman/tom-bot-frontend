@@ -30,7 +30,11 @@ export default function Layout() {
   return (
     <div className="flex h-full bg-slate-50">
       <div className="hidden lg:block">
-        <Sidebar restauranteNombre={usuario?.restaurante?.nombre} rol={usuario?.rol} />
+        <Sidebar
+          restauranteNombre={usuario?.restaurante?.nombre}
+          rol={usuario?.rol}
+          hasTenantContext={Boolean(usuario?.restaurante?.id)}
+        />
       </div>
 
       {menuOpen && (
@@ -47,6 +51,7 @@ export default function Layout() {
           onNavigate={() => setMenuOpen(false)}
           restauranteNombre={usuario?.restaurante?.nombre}
           rol={usuario?.rol}
+          hasTenantContext={Boolean(usuario?.restaurante?.id)}
         />
       </div>
 

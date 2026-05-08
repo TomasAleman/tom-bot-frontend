@@ -10,14 +10,22 @@ const NAV_ITEMS = [
   { to: '/configuracion', label: 'Config',     icon: 'settings' },
 ];
 
+const SUPERADMIN_ITEMS = [
+  { to: '/superadmin/restaurantes', label: 'Restaurantes', icon: 'settings' },
+  { to: '/superadmin/usuarios',     label: 'Usuarios',     icon: 'chat' },
+];
+
 function isRecepcionista(rol) {
   return rol === 'recepcionista' || rol === 'staff';
 }
 
-export default function Sidebar({ onNavigate, restauranteNombre, rol }) {
-  const items = isRecepcionista(rol)
-    ? NAV_ITEMS.filter((it) => it.to === '/reservas')
-    : NAV_ITEMS;
+export default function Sidebar({ onNavigate, restauranteNombre, rol, hasTenantContext }) {
+  let items = NAV_ITEMS;
+  if (rol === 'superadmin' && !hasTenantContext) {
+    items = SUPERADMIN_ITEMS;
+  } else if (isRecepcionista(rol)) {
+    items = NAV_ITEMS.filter((it) => it.to === '/reservas');
+  }
 
   return (
     <aside className="flex h-full w-72 max-w-[85vw] flex-col border-r border-slate-200 bg-white safe-left">
@@ -27,7 +35,9 @@ export default function Sidebar({ onNavigate, restauranteNombre, rol }) {
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-slate-900">Panel Reservas</p>
-          <p className="truncate text-xs text-slate-500">{restauranteNombre || '—'}</p>
+          <p className="truncate text-xs text-slate-500">
+            {rol === 'superadmin' && !hasTenantContext ? 'Superadmin' : (restauranteNombre || '—')}
+          </p>
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-3">
