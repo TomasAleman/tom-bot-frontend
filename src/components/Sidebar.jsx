@@ -10,7 +10,15 @@ const NAV_ITEMS = [
   { to: '/configuracion', label: 'Config',     icon: 'settings' },
 ];
 
-export default function Sidebar({ onNavigate, restauranteNombre }) {
+function isRecepcionista(rol) {
+  return rol === 'recepcionista' || rol === 'staff';
+}
+
+export default function Sidebar({ onNavigate, restauranteNombre, rol }) {
+  const items = isRecepcionista(rol)
+    ? NAV_ITEMS.filter((it) => it.to === '/reservas')
+    : NAV_ITEMS;
+
   return (
     <aside className="flex h-full w-72 max-w-[85vw] flex-col border-r border-slate-200 bg-white safe-left">
       <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-4 safe-top">
@@ -23,7 +31,7 @@ export default function Sidebar({ onNavigate, restauranteNombre }) {
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-3">
-        {NAV_ITEMS.map((it) => (
+        {items.map((it) => (
           <NavLink
             key={it.to}
             to={it.to}

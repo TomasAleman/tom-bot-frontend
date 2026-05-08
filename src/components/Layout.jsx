@@ -30,7 +30,7 @@ export default function Layout() {
   return (
     <div className="flex h-full bg-slate-50">
       <div className="hidden lg:block">
-        <Sidebar restauranteNombre={usuario?.restaurante?.nombre} />
+        <Sidebar restauranteNombre={usuario?.restaurante?.nombre} rol={usuario?.rol} />
       </div>
 
       {menuOpen && (
@@ -46,6 +46,7 @@ export default function Layout() {
         <Sidebar
           onNavigate={() => setMenuOpen(false)}
           restauranteNombre={usuario?.restaurante?.nombre}
+          rol={usuario?.rol}
         />
       </div>
 

@@ -7,11 +7,13 @@ import Modal from '../components/Modal.jsx';
 import { Button, Input, Label, Select, ErrorText } from '../components/Field.jsx';
 import { fmtFecha, fmtHora, fmtTimestamp } from '../lib/format.js';
 import { Icon } from '../components/Icon.jsx';
+import { useAuth } from '../lib/auth.jsx';
 
 export default function ReservaDetalle() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { usuario } = useAuth();
 
   const { data: reserva, isLoading, isError, error } = useQuery({
     queryKey: ['reserva', id],
@@ -48,7 +50,8 @@ export default function ReservaDetalle() {
   }
   if (!reserva) return null;
 
-  const editable = reserva.estado === 'Confirmada';
+  const isRecepcionista = usuario?.rol === 'recepcionista' || usuario?.rol === 'staff';
+  const editable = reserva.estado === 'Confirmada' && !isRecepcionista;
 
   return (
     <div className="space-y-4">
@@ -99,7 +102,9 @@ export default function ReservaDetalle() {
 
       {!editable && (
         <p className="text-xs text-slate-500">
-          Esta reserva ya no está Confirmada, no se puede editar ni cancelar.
+          {isRecepcionista
+            ? 'Tu rol es solo lectura: no podés editar ni cancelar reservas.'
+            : 'Esta reserva ya no está Confirmada, no se puede editar ni cancelar.'}
         </p>
       )}
 
