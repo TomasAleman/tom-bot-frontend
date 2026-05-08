@@ -10,7 +10,7 @@ export default function Topbar({ onOpenMenu, title }) {
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur safe-top">
-      <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
+      <div className="flex items-center gap-2 px-3 py-2 pt-[max(env(safe-area-inset-top),0.75rem)] sm:px-4">
         <button
           type="button"
           onClick={onOpenMenu}
