@@ -51,6 +51,7 @@ function toMinutos(hhmm) {
 export default function Mesas() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(null);
+  const [bulkTurnosOpen, setBulkTurnosOpen] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['mesas'],
@@ -71,9 +72,14 @@ export default function Mesas() {
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-slate-600">{mesas.length} mesas configuradas.</p>
-        <Button onClick={() => setEditing({ ...EMPTY_MESA })}>
-          <Icon name="plus" className="h-4 w-4" /> Nueva mesa
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="secondary" onClick={() => setBulkTurnosOpen(true)} disabled={mesas.length === 0}>
+            <Icon name="clock" className="h-4 w-4" /> Aplicar turnos a todas
+          </Button>
+          <Button onClick={() => setEditing({ ...EMPTY_MESA })}>
+            <Icon name="plus" className="h-4 w-4" /> Nueva mesa
+          </Button>
+        </div>
       </div>
 
       {mesas.length === 0 ? (
@@ -127,7 +133,126 @@ export default function Mesas() {
         onClose={() => setEditing(null)}
         onSaved={() => qc.invalidateQueries({ queryKey: ['mesas'] })}
       />
+
+      <BulkTurnosModal
+        open={bulkTurnosOpen}
+        mesas={mesas}
+        onClose={() => setBulkTurnosOpen(false)}
+        onApplied={() => qc.invalidateQueries({ queryKey: ['mesas'] })}
+      />
     </div>
+  );
+}
+
+function BulkTurnosModal({ open, mesas, onClose, onApplied }) {
+  const [turnos, setTurnos] = useState({
+    manana: { inicio: '', fin: '' },
+    mediodia: { inicio: '', fin: '' },
+    tarde: { inicio: '', fin: '' },
+  });
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+    // Por defecto: tomar el turno de la primera mesa como base (si existe).
+    const base = mesas?.[0] || null;
+    setTurnos({
+      manana: parseTurno(base?.horario_manana),
+      mediodia: parseTurno(base?.horario_mediodia),
+      tarde: parseTurno(base?.horario_tarde),
+    });
+    setError(null);
+  }, [open, mesas]);
+
+  const setTurno = (key, parte, value) => {
+    setTurnos((t) => ({ ...t, [key]: { ...t[key], [parte]: value } }));
+  };
+
+  function normTurno(t, label) {
+    const ini = (t.inicio || '').trim();
+    const fin = (t.fin || '').trim();
+    if (!ini && !fin) return null;
+    if (!ini || !fin) throw new Error(`${label}: completá inicio y fin, o dejá ambos vacíos.`);
+    if (toMinutos(fin) <= toMinutos(ini)) throw new Error(`${label}: el fin del turno debe ser posterior al inicio.`);
+    return `${ini}-${fin}`;
+  }
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const hmN = normTurno(turnos.manana, 'Primer turno');
+      const hmdN = normTurno(turnos.mediodia, 'Segundo turno');
+      const htN = normTurno(turnos.tarde, 'Tercer turno');
+      if (!hmN && !hmdN && !htN) throw new Error('Tenés que completar al menos 1 turno.');
+
+      const payload = {
+        horario_manana: hmN,
+        horario_mediodia: hmdN,
+        horario_tarde: htN,
+      };
+
+      const targets = (mesas || []).filter((m) => m?.id);
+      const res = await Promise.allSettled(
+        targets.map((m) => api.patch(`/mesas/${m.id}`, payload))
+      );
+
+      const failed = res.filter((r) => r.status === 'rejected');
+      if (failed.length > 0) {
+        const firstErr = failed[0].reason;
+        throw new Error(`No se pudieron actualizar ${failed.length} mesas. ${apiError(firstErr)}`);
+      }
+      return { ok: true, updated: targets.length };
+    },
+    onSuccess: () => {
+      onApplied?.();
+      onClose?.();
+    },
+    onError: (err) => setError(apiError(err, 'No se pudieron aplicar los turnos')),
+  });
+
+  if (!open) return null;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Aplicar turnos a todas las mesas"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={mut.isPending}>Cancelar</Button>
+          <Button onClick={() => { setError(null); mut.mutate(); }} disabled={mut.isPending}>
+            {mut.isPending ? 'Aplicando…' : 'Aplicar'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-xs text-slate-500">
+          Esto reemplaza los turnos de <b>todas</b> las mesas. El inicio es inclusivo y el fin exclusivo.
+          Podés dejar turnos vacíos, pero tenés que completar al menos 1.
+        </p>
+
+        <TurnoRow
+          label="Primer turno"
+          idPrefix="bulk-mn"
+          value={turnos.manana}
+          onChange={(parte, v) => setTurno('manana', parte, v)}
+        />
+        <TurnoRow
+          label="Segundo turno"
+          idPrefix="bulk-md"
+          value={turnos.mediodia}
+          onChange={(parte, v) => setTurno('mediodia', parte, v)}
+        />
+        <TurnoRow
+          label="Tercer turno"
+          idPrefix="bulk-tr"
+          value={turnos.tarde}
+          onChange={(parte, v) => setTurno('tarde', parte, v)}
+        />
+
+        <ErrorText>{error}</ErrorText>
+      </div>
+    </Modal>
   );
 }
 
