@@ -11,8 +11,7 @@ const NAV_ITEMS = [
 ];
 
 const SUPERADMIN_ITEMS = [
-  { to: '/superadmin/restaurantes', label: 'Restaurantes', icon: 'settings' },
-  { to: '/superadmin/usuarios',     label: 'Usuarios',     icon: 'chat' },
+  { to: '/superadmin/usuarios', label: 'Usuarios', icon: 'chat' },
 ];
 
 function isRecepcionista(rol) {

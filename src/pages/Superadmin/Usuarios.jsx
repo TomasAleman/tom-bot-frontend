@@ -109,6 +109,17 @@ export default function SuperadminUsuarios() {
     return `data:image/png;base64,${s}`;
   }
 
+  const trimmedEmail = String(userForm.email || '').trim().toLowerCase();
+  const passLen = String(userForm.password || '').length;
+  const restNombreOk = String(restForm.nombre_restaurante || '').trim().length > 0;
+  const canSubmit =
+    !mut.isPending &&
+    (
+      (rol === 'admin_restaurante' && restNombreOk && trimmedEmail.length > 0 && passLen >= 8) ||
+      (rol === 'recepcionista' && Number(userForm.restaurante_id) > 0 && trimmedEmail.length > 0 && passLen >= 8) ||
+      (rol === 'superadmin' && trimmedEmail.length > 0 && passLen >= 8)
+    );
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-slate-900">Superadmin · Usuarios</h2>
@@ -168,11 +179,17 @@ export default function SuperadminUsuarios() {
         </div>
 
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Button onClick={() => { setError(null); mut.mutate(); }} disabled={mut.isPending}>
+          <Button onClick={() => { setError(null); mut.mutate(); }} disabled={!canSubmit}>
             {mut.isPending ? 'Creando…' : (rol === 'admin_restaurante' ? 'Crear restaurante + usuario' : 'Crear usuario')}
           </Button>
           <ErrorText>{error}</ErrorText>
         </div>
+
+        {!canSubmit && !mut.isPending && (
+          <p className="mt-2 text-xs text-slate-500">
+            Completá los campos requeridos. La contraseña debe tener al menos 8 caracteres.
+          </p>
+        )}
 
         {result?.createdUser?.usuario && (
           <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
