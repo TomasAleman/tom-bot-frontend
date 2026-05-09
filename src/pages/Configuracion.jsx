@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, apiError } from '../lib/api.js';
+import { useAuth } from '../lib/auth.jsx';
 import { Button, Input, Select, Label, ErrorText } from '../components/Field.jsx';
 
 function valorInicialDeForm(parametro, valor, schema) {
@@ -47,9 +48,41 @@ function validarParaEnvio(parametro, valorForm, schema) {
 
 export default function Configuracion() {
   const qc = useQueryClient();
+  const { usuario } = useAuth();
+  const puedeEditarMenu =
+    (usuario?.rol === 'admin_restaurante' || usuario?.rol === 'superadmin') &&
+    Boolean(usuario?.restaurante?.id);
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['config'],
     queryFn: async () => (await api.get('/config')).data,
+  });
+
+  const menuQuery = useQuery({
+    queryKey: ['restaurante-menu'],
+    queryFn: async () => (await api.get('/restaurante/menu')).data,
+    enabled: puedeEditarMenu,
+  });
+
+  const [menuLink, setMenuLink] = useState('');
+  const [menuMostrar, setMenuMostrar] = useState('true');
+  const [menuErr, setMenuErr] = useState(null);
+  const [menuSavedAt, setMenuSavedAt] = useState(null);
+
+  useEffect(() => {
+    if (!menuQuery.data) return;
+    setMenuLink(menuQuery.data.link_menu ?? '');
+    setMenuMostrar(menuQuery.data.mostrar_menu === false ? 'false' : 'true');
+  }, [menuQuery.data]);
+
+  const menuGuardarMut = useMutation({
+    mutationFn: (payload) => api.patch('/restaurante/menu', payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['restaurante-menu'] });
+      setMenuSavedAt(new Date());
+      setMenuErr(null);
+    },
+    onError: (err) => setMenuErr(apiError(err, 'No se pudo guardar el menú')),
   });
 
   const schema = data?.schema || {};
@@ -87,6 +120,26 @@ export default function Configuracion() {
 
   if (isLoading) return <p className="text-sm text-slate-500">Cargando configuración…</p>;
   if (isError) return <p className="text-sm text-rose-600">Error: {apiError(error)}</p>;
+
+  const onGuardarMenu = (e) => {
+    e?.preventDefault?.();
+    setMenuErr(null);
+    const trimmed = String(menuLink ?? '').trim();
+    const origLink = String(menuQuery.data?.link_menu ?? '').trim();
+    const origMostrar = menuQuery.data?.mostrar_menu === false ? 'false' : 'true';
+    if (trimmed === origLink && menuMostrar === origMostrar) {
+      setMenuErr('No hay cambios en el menú para guardar.');
+      return;
+    }
+    if (trimmed !== '' && !/^https?:\/\//i.test(trimmed)) {
+      setMenuErr('El enlace debe empezar con http:// o https://');
+      return;
+    }
+    menuGuardarMut.mutate({
+      link_menu: trimmed === '' ? null : trimmed,
+      mostrar_menu: menuMostrar === 'true',
+    });
+  };
 
   const onGuardar = (e) => {
     e?.preventDefault?.();
@@ -245,6 +298,58 @@ export default function Configuracion() {
           )}
         </div>
       </form>
+
+      {puedeEditarMenu ? (
+        <section className="mt-8 space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <h2 className="text-sm font-semibold text-slate-800">Menú (WhatsApp)</h2>
+          <p className="text-xs text-slate-500">
+            Enlace al menú del restaurante y si el bot debe mostrar la opción «Ver el menú» en el mensaje de bienvenida.
+          </p>
+          {menuQuery.isLoading ? (
+            <p className="text-sm text-slate-500">Cargando datos del menú…</p>
+          ) : menuQuery.isError ? (
+            <p className="text-sm text-rose-600">Error: {apiError(menuQuery.error)}</p>
+          ) : (
+            <form className="space-y-3" onSubmit={onGuardarMenu}>
+              <div>
+                <Label htmlFor="menu-link">URL del menú</Label>
+                <Input
+                  id="menu-link"
+                  type="url"
+                  placeholder="https://…"
+                  value={menuLink}
+                  onChange={(e) => setMenuLink(e.target.value)}
+                  className="mt-1"
+                />
+                <p className="mt-1 text-xs text-slate-500">Dejalo vacío si todavía no tenés enlace público.</p>
+              </div>
+              <div>
+                <Label htmlFor="menu-mostrar">Mostrar menú en el bot</Label>
+                <Select
+                  id="menu-mostrar"
+                  value={menuMostrar}
+                  onChange={(e) => setMenuMostrar(e.target.value)}
+                  className="mt-1"
+                >
+                  <option value="true">Sí</option>
+                  <option value="false">No</option>
+                </Select>
+              </div>
+              <ErrorText>{menuErr}</ErrorText>
+              <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+                <Button type="submit" disabled={menuGuardarMut.isPending}>
+                  {menuGuardarMut.isPending ? 'Guardando…' : 'Guardar menú'}
+                </Button>
+                {menuSavedAt && !menuGuardarMut.isPending && (
+                  <span className="text-xs text-emerald-700">
+                    Menú guardado {menuSavedAt.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+            </form>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }
