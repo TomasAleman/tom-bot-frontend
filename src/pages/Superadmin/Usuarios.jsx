@@ -58,14 +58,18 @@ export default function SuperadminUsuarios() {
         const rid = createdRest?.restaurante?.id;
         if (!rid) throw new Error('No se pudo obtener restaurante_id');
 
-        // 2) Crear usuario admin del restaurante
-        const { data: createdUser } = await api.post('/superadmin/usuarios', {
-          restaurante_id: Number(rid),
-          email,
-          password,
-          nombre: String(userForm.nombre || '').trim() || undefined,
-          rol: 'admin_restaurante',
-        });
+        // 2) Crear usuario admin del restaurante (mismo timeout largo: bcrypt + red pueden sumar)
+        const { data: createdUser } = await api.post(
+          '/superadmin/usuarios',
+          {
+            restaurante_id: Number(rid),
+            email,
+            password,
+            nombre: String(userForm.nombre || '').trim() || undefined,
+            rol: 'admin_restaurante',
+          },
+          { timeout: 90_000 }
+        );
 
         return { createdRest, createdUser };
       }
