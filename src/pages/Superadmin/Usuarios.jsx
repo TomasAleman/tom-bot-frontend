@@ -46,10 +46,14 @@ export default function SuperadminUsuarios() {
         if (!password || password.length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
 
         // 1) Crear restaurante (incluye crear instancia en Evolution y devuelve qrcode)
-        const { data: createdRest } = await api.post('/superadmin/restaurantes', {
-          nombre: nombreRest,
-          slug: String(restForm.slug || '').trim() || undefined,
-        });
+        const { data: createdRest } = await api.post(
+          '/superadmin/restaurantes',
+          {
+            nombre: nombreRest,
+            slug: String(restForm.slug || '').trim() || undefined,
+          },
+          { timeout: 90_000 }
+        );
 
         const rid = createdRest?.restaurante?.id;
         if (!rid) throw new Error('No se pudo obtener restaurante_id');
@@ -80,16 +84,7 @@ export default function SuperadminUsuarios() {
         return { createdUser: res.data };
       }
 
-      // superadmin
-      const payload = {
-        restaurante_id: null,
-        email: String(userForm.email || '').trim().toLowerCase(),
-        password: String(userForm.password || ''),
-        nombre: String(userForm.nombre || '').trim() || undefined,
-        rol: 'superadmin',
-      };
-      const res = await api.post('/superadmin/usuarios', payload);
-      return { createdUser: res.data };
+      throw new Error('Rol no soportado');
     },
     onSuccess: (data) => {
       setResult(data || null);
@@ -116,8 +111,7 @@ export default function SuperadminUsuarios() {
     !mut.isPending &&
     (
       (rol === 'admin_restaurante' && restNombreOk && trimmedEmail.length > 0 && passLen >= 8) ||
-      (rol === 'recepcionista' && Number(userForm.restaurante_id) > 0 && trimmedEmail.length > 0 && passLen >= 8) ||
-      (rol === 'superadmin' && trimmedEmail.length > 0 && passLen >= 8)
+      (rol === 'recepcionista' && Number(userForm.restaurante_id) > 0 && trimmedEmail.length > 0 && passLen >= 8)
     );
 
   return (
@@ -131,7 +125,6 @@ export default function SuperadminUsuarios() {
             <Select value={rol} onChange={(e) => setRol(e.target.value)}>
               <option value="admin_restaurante">Admin restaurante</option>
               <option value="recepcionista">Recepcionista (solo lectura)</option>
-              <option value="superadmin">Superadmin</option>
             </Select>
           </div>
 
@@ -173,7 +166,7 @@ export default function SuperadminUsuarios() {
             <Input type="password" value={userForm.password} onChange={(e) => setUserForm((s) => ({ ...s, password: e.target.value }))} />
           </div>
           <div className="sm:col-span-2">
-            <Label>Nombre (opcional)</Label>
+            <Label>Nombre del usuario (opcional)</Label>
             <Input value={userForm.nombre} onChange={(e) => setUserForm((s) => ({ ...s, nombre: e.target.value }))} />
           </div>
         </div>
