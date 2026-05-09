@@ -23,11 +23,33 @@ export function fmtFechaCorta(iso) {
   return s;
 }
 
+/**
+ * `horario_hora` en API: minutos desde medianoche (0–1439) tras migración Postgres.
+ * Devuelve siempre "HH:MM" en 24 h.
+ */
 export function fmtHora(horaInt) {
   if (horaInt === null || horaInt === undefined) return '';
   const n = Number(horaInt);
-  if (Number.isNaN(n)) return '';
-  return `${n.toString().padStart(2, '0')}hs`;
+  if (!Number.isFinite(n) || n < 0 || n > 1439) return '';
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** Valor para `<input type="time" />` (mismo criterio que fmtHora). */
+export function fmtHoraParaInput(horaInt) {
+  return fmtHora(horaInt);
+}
+
+/** Parsea "H:MM" o "HH:MM" → minutos 0–1439, o null. */
+export function minutosDesdeHHMM(s) {
+  if (s == null || s === '') return null;
+  const m = String(s).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const mi = parseInt(m[2], 10);
+  if (h < 0 || h > 23 || mi < 0 || mi > 59) return null;
+  return h * 60 + mi;
 }
 
 export function fmtTimestamp(iso) {

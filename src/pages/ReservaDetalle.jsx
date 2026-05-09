@@ -5,7 +5,7 @@ import { api, apiError } from '../lib/api.js';
 import EstadoBadge from '../components/EstadoBadge.jsx';
 import Modal from '../components/Modal.jsx';
 import { Button, Input, Label, Select, ErrorText } from '../components/Field.jsx';
-import { fmtFecha, fmtHora, fmtTimestamp } from '../lib/format.js';
+import { fmtFecha, fmtHora, fmtHoraParaInput, fmtTimestamp, minutosDesdeHHMM } from '../lib/format.js';
 import { Icon } from '../components/Icon.jsx';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -68,7 +68,7 @@ export default function ReservaDetalle() {
           <Row label="Nombre"   value={reserva.nombre} />
           <Row label="Teléfono" value={reserva.telefono} />
           <Row label="Día"      value={fmtFecha(reserva.dia)} />
-          <Row label="Horario"  value={`${fmtHora(reserva.horario_hora)} (${reserva.horario_label})`} />
+          <Row label="Horario"  value={fmtHora(reserva.horario_hora)} />
           <Row label="Turno"    value={reserva.turno || '—'} />
           <Row label="Personas" value={reserva.personas} />
           <Row label="Creada"   value={fmtTimestamp(reserva.created_at)} />
@@ -182,7 +182,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
         nombre: reserva.nombre,
         personas: reserva.personas,
         dia: reserva.dia ? String(reserva.dia).slice(0, 10) : '',
-        horario: reserva.horario_hora,
+        horario: fmtHoraParaInput(reserva.horario_hora),
       });
       setError(null);
     }
@@ -203,6 +203,10 @@ function EditModal({ open, onClose, reserva, onSaved }) {
     },
     onSuccess: () => { onSaved?.(); onClose(); },
     onError: (err) => {
+      if (err?.message && !err?.response) {
+        setError(err.message);
+        return;
+      }
       const code = err?.response?.data?.error;
       if (code === 'sin_disponibilidad') {
         setError('No hay mesa disponible para esa combinación de día/horario/personas.');
@@ -240,8 +244,8 @@ function EditModal({ open, onClose, reserva, onSaved }) {
             />
           </div>
           <div>
-            <Label htmlFor="ed-horario">Hora (0–23)</Label>
-            <Input id="ed-horario" type="number" min={0} max={23} inputMode="numeric"
+            <Label htmlFor="ed-horario">Hora (24 h)</Label>
+            <Input id="ed-horario" type="time" step={60}
               value={form.horario ?? ''}
               onChange={(e) => setForm({ ...form, horario: e.target.value })}
             />
