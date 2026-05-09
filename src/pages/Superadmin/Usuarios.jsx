@@ -8,6 +8,8 @@ export default function SuperadminUsuarios() {
   const [restForm, setRestForm] = useState({
     nombre_restaurante: '',
     slug: '',
+    instancia_evolution: '',
+    evolution_api_key: '',
   });
   const [userForm, setUserForm] = useState({
     restaurante_id: '',
@@ -45,14 +47,19 @@ export default function SuperadminUsuarios() {
         if (!email) throw new Error('Falta el email');
         if (!password || password.length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
 
-        // 1) Crear restaurante (incluye crear instancia en Evolution y devuelve qrcode)
+        const evoKey = String(restForm.evolution_api_key || '').trim();
+        if (!evoKey || evoKey.length < 10) throw new Error('Falta la API key de la instancia Evolution (creala en Evolution Manager y pegala acá)');
+
+        // 1) Crear restaurante en DB (la instancia Evolution se crea fuera del panel)
         const { data: createdRest } = await api.post(
           '/superadmin/restaurantes',
           {
             nombre: nombreRest,
             slug: String(restForm.slug || '').trim() || undefined,
+            instancia_evolution: String(restForm.instancia_evolution || '').trim() || undefined,
+            evolution_api_key: evoKey,
           },
-          { timeout: 90_000 }
+          { timeout: 60_000 }
         );
 
         const rid = createdRest?.restaurante?.id;
@@ -100,21 +107,14 @@ export default function SuperadminUsuarios() {
     },
   });
 
-  function qrSrc(qr) {
-    if (!qr) return null;
-    const s = String(qr);
-    if (s.startsWith('data:image/')) return s;
-    if (s.includes(',')) return s; // ya viene como data uri
-    return `data:image/png;base64,${s}`;
-  }
-
   const trimmedEmail = String(userForm.email || '').trim().toLowerCase();
   const passLen = String(userForm.password || '').length;
   const restNombreOk = String(restForm.nombre_restaurante || '').trim().length > 0;
+  const evoKeyOk = String(restForm.evolution_api_key || '').trim().length >= 10;
   const canSubmit =
     !mut.isPending &&
     (
-      (rol === 'admin_restaurante' && restNombreOk && trimmedEmail.length > 0 && passLen >= 8) ||
+      (rol === 'admin_restaurante' && restNombreOk && evoKeyOk && trimmedEmail.length > 0 && passLen >= 8) ||
       (rol === 'recepcionista' && Number(userForm.restaurante_id) > 0 && trimmedEmail.length > 0 && passLen >= 8)
     );
 
@@ -141,6 +141,27 @@ export default function SuperadminUsuarios() {
               <div>
                 <Label>Slug (opcional)</Label>
                 <Input value={restForm.slug} onChange={(e) => setRestForm((s) => ({ ...s, slug: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Instancia Evolution (opcional)</Label>
+                <Input
+                  value={restForm.instancia_evolution}
+                  onChange={(e) => setRestForm((s) => ({ ...s, instancia_evolution: e.target.value }))}
+                  placeholder="Si vacío, se usa el slug del restaurante"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label>API key de la instancia Evolution</Label>
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  value={restForm.evolution_api_key}
+                  onChange={(e) => setRestForm((s) => ({ ...s, evolution_api_key: e.target.value }))}
+                  placeholder="Creá la instancia en Evolution Manager y pegá la apikey aquí"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  El panel ya no crea la instancia en Evolution (evita timeouts). El nombre de instancia debe coincidir con el de Evolution; si lo dejás vacío, usamos el mismo valor que el slug.
+                </p>
               </div>
             </>
           )}
@@ -200,15 +221,11 @@ export default function SuperadminUsuarios() {
             <div className="text-sm font-semibold text-slate-900">
               Restaurante creado: #{result.createdRest.restaurante.id} · {result.createdRest.restaurante.nombre}
             </div>
-            {qrSrc(result.createdRest?.evolution?.qrcode) && (
-              <div className="mt-2">
-                <p className="text-xs text-slate-500">Escaneá el QR para conectar WhatsApp.</p>
-                <img
-                  src={qrSrc(result.createdRest.evolution.qrcode)}
-                  alt="QR Evolution"
-                  className="mt-2 h-64 w-64 rounded-xl border border-slate-200 bg-white object-contain"
-                />
-              </div>
+            {result.createdRest?.evolution?.instanceName && (
+              <p className="mt-1 text-xs text-slate-600">
+                Instancia Evolution enlazada: <code className="rounded bg-slate-100 px-1">{result.createdRest.evolution.instanceName}</code>
+                {' '}— conectá WhatsApp desde Evolution Manager si aún no lo hiciste.
+              </p>
             )}
           </div>
         )}
