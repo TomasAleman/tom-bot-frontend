@@ -50,35 +50,30 @@ export default function SuperadminUsuarios() {
         const evoKey = String(restForm.evolution_api_key || '').trim();
         if (!evoKey || evoKey.length < 10) throw new Error('Falta la API key de la instancia Evolution (creala en Evolution Manager y pegala acá)');
 
-        // 1) Crear restaurante en DB (la instancia Evolution se crea fuera del panel)
-        const { data: createdRest } = await api.post(
+        // Una sola petición: restaurante + admin en la misma transacción en el backend
+        const { data } = await api.post(
           '/superadmin/restaurantes',
           {
             nombre: nombreRest,
             slug: String(restForm.slug || '').trim() || undefined,
             instancia_evolution: String(restForm.instancia_evolution || '').trim() || undefined,
             evolution_api_key: evoKey,
+            admin_email: email,
+            admin_password: password,
+            admin_nombre: String(userForm.nombre || '').trim() || undefined,
           },
-          { timeout: 60_000 }
+          { timeout: 120_000 }
         );
 
-        const rid = createdRest?.restaurante?.id;
-        if (!rid) throw new Error('No se pudo obtener restaurante_id');
+        if (!data?.restaurante?.id || !data?.usuario) {
+          throw new Error('Respuesta incompleta del servidor');
+        }
 
-        // 2) Crear usuario admin del restaurante (mismo timeout largo: bcrypt + red pueden sumar)
-        const { data: createdUser } = await api.post(
-          '/superadmin/usuarios',
-          {
-            restaurante_id: Number(rid),
-            email,
-            password,
-            nombre: String(userForm.nombre || '').trim() || undefined,
-            rol: 'admin_restaurante',
-          },
-          { timeout: 90_000 }
-        );
-
-        return { createdRest, createdUser };
+        return {
+          restaurante: data.restaurante,
+          usuario: data.usuario,
+          evolution: data.evolution,
+        };
       }
 
       if (rol === 'recepcionista') {
@@ -160,7 +155,7 @@ export default function SuperadminUsuarios() {
                   placeholder="Creá la instancia en Evolution Manager y pegá la apikey aquí"
                 />
                 <p className="mt-1 text-xs text-slate-500">
-                  El panel ya no crea la instancia en Evolution (evita timeouts). El nombre de instancia debe coincidir con el de Evolution; si lo dejás vacío, usamos el mismo valor que el slug.
+                  Creá la instancia en Evolution Manager y pegá la apikey. El alta de restaurante y del usuario admin se guarda en una sola operación (un solo request).
                 </p>
               </div>
             </>
@@ -209,21 +204,21 @@ export default function SuperadminUsuarios() {
           </p>
         )}
 
-        {result?.createdUser?.usuario && (
+        {result?.usuario && (
           <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-            Usuario creado: #{result.createdUser.usuario.id} · {result.createdUser.usuario.email} · {result.createdUser.usuario.rol}
-            {result.createdUser.usuario.restaurante_id ? ` · restaurante_id=${result.createdUser.usuario.restaurante_id}` : ''}
+            Usuario creado: #{result.usuario.id} · {result.usuario.email} · {result.usuario.rol}
+            {result.usuario.restaurante_id ? ` · restaurante_id=${result.usuario.restaurante_id}` : ''}
           </div>
         )}
 
-        {result?.createdRest?.restaurante && (
+        {result?.restaurante && (
           <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
             <div className="text-sm font-semibold text-slate-900">
-              Restaurante creado: #{result.createdRest.restaurante.id} · {result.createdRest.restaurante.nombre}
+              Restaurante creado: #{result.restaurante.id} · {result.restaurante.nombre}
             </div>
-            {result.createdRest?.evolution?.instanceName && (
+            {result?.evolution?.instanceName && (
               <p className="mt-1 text-xs text-slate-600">
-                Instancia Evolution enlazada: <code className="rounded bg-slate-100 px-1">{result.createdRest.evolution.instanceName}</code>
+                Instancia Evolution enlazada: <code className="rounded bg-slate-100 px-1">{result.evolution.instanceName}</code>
                 {' '}— conectá WhatsApp desde Evolution Manager si aún no lo hiciste.
               </p>
             )}
