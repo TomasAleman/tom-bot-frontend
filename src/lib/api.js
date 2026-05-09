@@ -45,9 +45,16 @@ api.interceptors.response.use(
 );
 
 export function apiError(err, fallback = 'Error de red') {
+  const data = err?.response?.data;
+  if (data?.issues && Array.isArray(data.issues)) {
+    const parts = data.issues
+      .map((i) => i.message || (Array.isArray(i.path) ? `${i.path.join('.')}: inválido` : null))
+      .filter(Boolean);
+    if (parts.length) return parts.join(' · ');
+  }
   return (
-    err?.response?.data?.message ||
-    err?.response?.data?.error ||
+    data?.message ||
+    data?.error ||
     err?.message ||
     fallback
   );

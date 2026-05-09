@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiError } from '../../lib/api.js';
 import { Button, Input, Label, Select, ErrorText } from '../../components/Field.jsx';
 
@@ -19,10 +19,11 @@ export default function SuperadminUsuarios() {
   });
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const queryClient = useQueryClient();
 
   const { data: restaurantesData } = useQuery({
     queryKey: ['superadmin', 'restaurantes'],
-    queryFn: async () => (await api.get('/superadmin/restaurantes')).data,
+    queryFn: async () => (await api.get('/superadmin/restaurantes', { timeout: 45_000 })).data,
     staleTime: 10_000,
   });
 
@@ -86,8 +87,8 @@ export default function SuperadminUsuarios() {
           nombre: String(userForm.nombre || '').trim() || undefined,
           rol: 'recepcionista',
         };
-        const res = await api.post('/superadmin/usuarios', payload);
-        return { createdUser: res.data };
+        const res = await api.post('/superadmin/usuarios', payload, { timeout: 90_000 });
+        return { usuario: res.data?.usuario };
       }
 
       throw new Error('Rol no soportado');
@@ -95,6 +96,7 @@ export default function SuperadminUsuarios() {
     onSuccess: (data) => {
       setResult(data || null);
       setError(null);
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'restaurantes'] });
     },
     onError: (err) => {
       setResult(null);
