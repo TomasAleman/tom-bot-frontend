@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import clsx from 'clsx';
 import { Icon } from './Icon.jsx';
+import { isRecepcionista } from '../lib/roles.js';
 
 const NAV_ITEMS = [
   { to: '/dashboard',     label: 'Dashboard',  icon: 'dashboard' },
@@ -13,10 +14,6 @@ const NAV_ITEMS = [
 const SUPERADMIN_ITEMS = [
   { to: '/superadmin/usuarios', label: 'Usuarios', icon: 'chat' },
 ];
-
-function isRecepcionista(rol) {
-  return rol === 'recepcionista' || rol === 'staff';
-}
 
 export default function Sidebar({ onNavigate, restauranteNombre, rol, hasTenantContext }) {
   let items = NAV_ITEMS;

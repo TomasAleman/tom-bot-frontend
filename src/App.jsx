@@ -10,6 +10,7 @@ import Configuracion from './pages/Configuracion.jsx';
 import Sesiones from './pages/Sesiones.jsx';
 import SuperadminRestaurantes from './pages/Superadmin/Restaurantes.jsx';
 import SuperadminUsuarios from './pages/Superadmin/Usuarios.jsx';
+import { homePathForRol, isRecepcionista } from './lib/roles.js';
 
 function Loading() {
   return (
@@ -24,10 +25,6 @@ function ProtectedRoute({ children }) {
   if (loading || (token && !isAuthenticated)) return <Loading />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return children;
-}
-
-function isRecepcionista(rol) {
-  return rol === 'recepcionista' || rol === 'staff';
 }
 
 function RequireNotRecepcionista({ children }) {
@@ -46,8 +43,15 @@ function RequireTenantContextForSuperadmin({ children }) {
 
 function RequireSuperadmin({ children }) {
   const { usuario } = useAuth();
-  if (usuario?.rol !== 'superadmin') return <Navigate to="/dashboard" replace />;
+  if (usuario?.rol !== 'superadmin') {
+    return <Navigate to={homePathForRol(usuario?.rol, null)} replace />;
+  }
   return children;
+}
+
+function DefaultHomeRedirect() {
+  const { usuario } = useAuth();
+  return <Navigate to={homePathForRol(usuario?.rol, null)} replace />;
 }
 
 export default function App() {
@@ -62,8 +66,8 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard"     element={<RequireTenantContextForSuperadmin><Dashboard /></RequireTenantContextForSuperadmin>} />
+        <Route index element={<DefaultHomeRedirect />} />
+        <Route path="dashboard"     element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Dashboard /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
         <Route path="reservas"      element={<RequireTenantContextForSuperadmin><Reservas /></RequireTenantContextForSuperadmin>} />
         <Route path="reservas/:id"  element={<RequireTenantContextForSuperadmin><ReservaDetalle /></RequireTenantContextForSuperadmin>} />
         <Route path="mesas"         element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Mesas /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
+import { homePathForRol } from '../lib/roles.js';
 import { apiError } from '../lib/api.js';
 import { Button, Input, Label, ErrorText } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
 
 export default function Login() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, usuario, loading, token } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -15,8 +16,16 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  if (token && loading) {
+    return (
+      <div className="flex min-h-full items-center justify-center text-slate-500">
+        Cargando…
+      </div>
+    );
+  }
+
   if (isAuthenticated) {
-    const to = location.state?.from || '/dashboard';
+    const to = homePathForRol(usuario?.rol, location.state?.from);
     return <Navigate to={to} replace />;
   }
 
@@ -25,8 +34,8 @@ export default function Login() {
     setError(null);
     setLoading(true);
     try {
-      await login(email.trim().toLowerCase(), password);
-      navigate(location.state?.from || '/dashboard', { replace: true });
+      const u = await login(email.trim().toLowerCase(), password);
+      navigate(homePathForRol(u?.rol, location.state?.from), { replace: true });
     } catch (err) {
       const status = err?.response?.status;
       if (status === 401) setError('Email o contraseña incorrectos');
