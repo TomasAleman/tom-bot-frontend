@@ -7,7 +7,7 @@ import { Button, Input, Label, ErrorText } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
 
 export default function Login() {
-  const { login, isAuthenticated, usuario, loading, token } = useAuth();
+  const { login, isAuthenticated, usuario, loading: authLoading, token } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -16,7 +16,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  if (token && loading) {
+  if (token && authLoading) {
     return (
       <div className="flex min-h-full items-center justify-center text-slate-500">
         Cargando…
