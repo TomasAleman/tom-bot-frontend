@@ -11,6 +11,11 @@ import { useAuth } from '../lib/auth.jsx';
 
 const PAGE_SIZE = 20;
 
+/** Admin del restaurante (migración 014); `restaurante` por compat. */
+function puedeCrearReserva(rol) {
+  return rol === 'admin_restaurante' || rol === 'restaurante';
+}
+
 function todayIso() {
   const d = new Date();
   const y = d.getFullYear();
@@ -91,7 +96,7 @@ export default function Reservas() {
             <Icon name="settings" className="h-4 w-4" />
             Filtros {filtrosOpen ? '▾' : '▸'}
           </button>
-          {usuario?.rol === 'restaurante' && (
+          {puedeCrearReserva(usuario?.rol) && (
             <Button variant="primary" onClick={() => setCrearOpen(true)}>
               <Icon name="plus" className="h-4 w-4" /> Crear reserva
             </Button>
@@ -258,7 +263,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
   const crearMut = useMutation({
     mutationFn: async () => {
       setError(null);
-      if (usuario?.rol !== 'restaurante') throw new Error('No tenés permisos para crear reservas');
+      if (!puedeCrearReserva(usuario?.rol)) throw new Error('No tenés permisos para crear reservas');
       const payload = {
         dia: String(form.dia || ''),
         personas: Number(form.personas),
