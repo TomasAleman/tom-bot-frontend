@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api, apiError } from '../lib/api.js';
 import EstadoBadge from '../components/EstadoBadge.jsx';
 import { Input, Select, Button } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
 import { fmtFechaCorta, fmtHora } from '../lib/format.js';
+import Modal from '../components/Modal.jsx';
+import { useAuth } from '../lib/auth.jsx';
 
 const PAGE_SIZE = 20;
 
@@ -18,6 +20,9 @@ function todayIso() {
 }
 
 export default function Reservas() {
+  const { usuario } = useAuth();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
   const [filtros, setFiltros] = useState({
     dia_desde: todayIso(),
     dia_hasta: '',
@@ -27,6 +32,7 @@ export default function Reservas() {
   });
   const [page, setPage] = useState(1);
   const [filtrosOpen, setFiltrosOpen] = useState(false);
+  const [crearOpen, setCrearOpen] = useState(false);
 
   const queryParams = useMemo(() => {
     const p = new URLSearchParams();
@@ -85,6 +91,11 @@ export default function Reservas() {
             <Icon name="settings" className="h-4 w-4" />
             Filtros {filtrosOpen ? '▾' : '▸'}
           </button>
+          {usuario?.rol === 'restaurante' && (
+            <Button variant="primary" onClick={() => setCrearOpen(true)}>
+              <Icon name="plus" className="h-4 w-4" /> Crear reserva
+            </Button>
+          )}
         </div>
 
         {filtrosOpen && (
@@ -212,6 +223,119 @@ export default function Reservas() {
           </nav>
         </>
       )}
+
+      <CrearReservaModal
+        open={crearOpen}
+        onClose={() => setCrearOpen(false)}
+        onCreated={(reserva) => {
+          setCrearOpen(false);
+          qc.invalidateQueries({ queryKey: ['reservas'] });
+          qc.invalidateQueries({ queryKey: ['metricas'] });
+          if (reserva?.id) navigate(`/reservas/${reserva.id}`);
+        }}
+      />
     </div>
+  );
+}
+
+function CrearReservaModal({ open, onClose, onCreated }) {
+  const { usuario } = useAuth();
+  const [form, setForm] = useState({ dia: todayIso(), personas: 2, horario: '', telefono: '', nombre: '' });
+  const [error, setError] = useState(null);
+
+  const dia = form.dia;
+  const personas = Number(form.personas || 0);
+  const canFetch = Boolean(open && dia && personas >= 1);
+
+  const disp = useQuery({
+    queryKey: ['reservas-disponibilidad', dia, personas],
+    enabled: canFetch,
+    queryFn: async () => (await api.get(`/reservas/disponibilidad?dia=${encodeURIComponent(dia)}&personas=${encodeURIComponent(String(personas))}`)).data,
+  });
+
+  const horarios = disp.data?.horarios || [];
+
+  const crearMut = useMutation({
+    mutationFn: async () => {
+      setError(null);
+      if (usuario?.rol !== 'restaurante') throw new Error('No tenés permisos para crear reservas');
+      const payload = {
+        dia: String(form.dia || ''),
+        personas: Number(form.personas),
+        horario: Number(form.horario),
+        telefono: String(form.telefono || '').trim(),
+        nombre: String(form.nombre || '').trim(),
+      };
+      const res = await api.post('/reservas', payload);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      onCreated?.(data?.reserva);
+    },
+    onError: (e) => setError(e),
+  });
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Crear reserva"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={crearMut.isPending}>Cancelar</Button>
+          <Button variant="primary" onClick={() => crearMut.mutate()} disabled={crearMut.isPending || !form.horario}>
+            {crearMut.isPending ? 'Creando…' : 'Crear'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Día</label>
+            <Input type="date" value={form.dia} onChange={(e) => setForm((f) => ({ ...f, dia: e.target.value, horario: '' }))} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Personas</label>
+            <Input type="number" min={1} max={50} value={form.personas} onChange={(e) => setForm((f) => ({ ...f, personas: e.target.value, horario: '' }))} />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-600">Horarios disponibles</label>
+          {disp.isLoading ? (
+            <p className="text-xs text-slate-500">Cargando disponibilidad…</p>
+          ) : disp.isError ? (
+            <p className="text-xs text-rose-600">Error: {apiError(disp.error)}</p>
+          ) : (
+            <Select value={form.horario} onChange={(e) => setForm((f) => ({ ...f, horario: e.target.value }))}>
+              <option value="">Elegí un horario…</option>
+              {horarios.map((h) => (
+                <option key={h.valor} value={h.valor}>{h.label}</option>
+              ))}
+            </Select>
+          )}
+          {!disp.isLoading && !disp.isError && canFetch && horarios.length === 0 && (
+            <p className="mt-1 text-xs text-slate-500">No hay horarios disponibles para esa fecha y cantidad de personas.</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Teléfono</label>
+            <Input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} placeholder="Ej: 11 2345-6789" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Nombre</label>
+            <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Nombre y apellido" />
+          </div>
+        </div>
+
+        {error && <p className="text-xs text-rose-600">Error: {apiError(error)}</p>}
+        {disp.data?.turnos?.length ? (
+          <p className="text-xs text-slate-500">Turnos: {disp.data.turnos.join(' · ')}</p>
+        ) : null}
+      </div>
+    </Modal>
   );
 }
