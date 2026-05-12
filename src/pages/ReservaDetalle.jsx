@@ -56,7 +56,9 @@ export default function ReservaDetalle() {
   if (!reserva) return null;
 
   const isRecepcionista = usuario?.rol === 'recepcionista' || usuario?.rol === 'staff';
-  const editable = reserva.estado === 'Confirmada' && !isRecepcionista;
+  const reservaConfirmada = reserva.estado === 'Confirmada';
+  const puedeEditarCancelar = reservaConfirmada && !isRecepcionista;
+  const puedeMarcarNoVino = reservaConfirmada;
 
   return (
     <div className="space-y-4">
@@ -90,33 +92,46 @@ export default function ReservaDetalle() {
       </section>
 
       <div className="flex flex-col gap-2 sm:flex-row">
-        <Button
-          variant="primary"
-          disabled={!editable}
-          onClick={() => setEditOpen(true)}
-        >
-          <Icon name="edit" className="h-4 w-4" /> Editar
-        </Button>
-        <Button
-          variant="warning"
-          disabled={!editable}
-          onClick={() => setConfirmOpen('noshow')}
-        >
-          <Icon name="alert" className="h-4 w-4" /> Marcar como no vino
-        </Button>
-        <Button
-          variant="danger"
-          disabled={!editable}
-          onClick={() => setConfirmOpen('cancelar')}
-        >
-          <Icon name="x-circle" className="h-4 w-4" /> Cancelar
-        </Button>
+        {!isRecepcionista && (
+          <>
+            <Button
+              variant="primary"
+              disabled={!puedeEditarCancelar}
+              onClick={() => setEditOpen(true)}
+            >
+              <Icon name="edit" className="h-4 w-4" /> Editar
+            </Button>
+            <Button
+              variant="warning"
+              disabled={!puedeEditarCancelar}
+              onClick={() => setConfirmOpen('noshow')}
+            >
+              <Icon name="alert" className="h-4 w-4" /> Marcar como no vino
+            </Button>
+            <Button
+              variant="danger"
+              disabled={!puedeEditarCancelar}
+              onClick={() => setConfirmOpen('cancelar')}
+            >
+              <Icon name="x-circle" className="h-4 w-4" /> Cancelar
+            </Button>
+          </>
+        )}
+        {isRecepcionista && (
+          <Button
+            variant="warning"
+            disabled={!puedeMarcarNoVino}
+            onClick={() => setConfirmOpen('noshow')}
+          >
+            <Icon name="alert" className="h-4 w-4" /> Marcar como no vino
+          </Button>
+        )}
       </div>
 
-      {!editable && (
+      {(isRecepcionista ? !reservaConfirmada : !puedeEditarCancelar) && (
         <p className="text-xs text-slate-500">
           {isRecepcionista
-            ? 'Tu rol es solo lectura: no podés editar ni cancelar reservas.'
+            ? 'Solo podés marcar si no vino cuando la reserva está confirmada.'
             : 'Esta reserva ya no está Confirmada, no se puede editar ni cancelar.'}
         </p>
       )}
