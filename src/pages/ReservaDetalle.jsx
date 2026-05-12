@@ -233,7 +233,16 @@ function EditModal({ open, onClose, reserva, onSaved }) {
       )).data,
   });
 
-  const horarios = disp.data?.horarios || [];
+  /** Igual que creación: slots del GET; si el turno actual no viene (ex.: borde), lo agregamos para que el Select sea coherente. */
+  const horariosOptions = useMemo(() => {
+    const list = [...(disp.data?.horarios || [])];
+    const cur = Number(reserva.horario_hora);
+    if (Number.isFinite(cur) && cur >= 0 && cur <= 1439 && !list.some((h) => Number(h.valor) === cur)) {
+      list.push({ valor: cur, label: `${fmtHora(cur)} (actual)` });
+    }
+    return list.sort((a, b) => Number(a.valor) - Number(b.valor));
+  }, [disp.data?.horarios, reserva.horario_hora]);
+
   const libres = mesasLibres.data?.mesas || [];
 
   const canSingle = useMemo(
@@ -241,15 +250,14 @@ function EditModal({ open, onClose, reserva, onSaved }) {
     [libres, personas],
   );
   const sumMaxLibres = useMemo(() => libres.reduce((s, m) => s + m.max_personas, 0), [libres]);
-  const sumMinLibres = useMemo(() => libres.reduce((s, m) => s + m.min_personas, 0), [libres]);
+  /** Junte: cupo según suma de máximos; no exigir personas >= suma de mins de todas las mesas libres. */
   const ofrecerJunte =
     esAdmin &&
     canFetchMesas &&
     mesasLibres.isSuccess &&
-    libres.length > 0 &&
+    libres.length >= 2 &&
     !canSingle &&
-    sumMaxLibres >= personas &&
-    personas >= sumMinLibres;
+    sumMaxLibres >= personas;
 
   const selModels = useMemo(
     () => libres.filter((m) => junteSel.includes(m.numero_mesa)),
@@ -278,6 +286,13 @@ function EditModal({ open, onClose, reserva, onSaved }) {
     !canSingle &&
     (!juntePasoActivo || !junteValido);
 
+  /** Evita guardar mientras no está lista la disponibilidad o (admin) las mesas libres del slot. */
+  const esperandoDatosMesa =
+    needsMesaRecompute && (
+      disp.isLoading || disp.isFetching
+      || (esAdmin && Number.isFinite(horarioMin) && (mesasLibres.isLoading || mesasLibres.isFetching))
+    );
+
   const mut = useMutation({
     mutationFn: async () => {
       const nombreTrim = String(form.nombre || '').trim();
@@ -294,6 +309,13 @@ function EditModal({ open, onClose, reserva, onSaved }) {
 
       if (!Number.isFinite(horarioNum)) {
         throw new Error('Elegí un horario de la lista.');
+      }
+
+      if (needsRecompute && (disp.isLoading || disp.isFetching)) {
+        throw new Error('Esperá a que cargue la disponibilidad.');
+      }
+      if (needsRecompute && esAdmin && Number.isFinite(horarioMin) && (mesasLibres.isLoading || mesasLibres.isFetching)) {
+        throw new Error('Esperá a que carguen las mesas libres para este horario.');
       }
 
       if (needsRecompute && esAdmin && ofrecerJunte && !canSingle) {
@@ -348,7 +370,12 @@ function EditModal({ open, onClose, reserva, onSaved }) {
           <Button variant="secondary" onClick={onClose} disabled={mut.isPending}>Cancelar</Button>
           <Button
             onClick={() => { setError(null); mut.mutate(); }}
-            disabled={mut.isPending || !form.horario || bloqueadoJunte}
+            disabled={
+              mut.isPending
+              || !form.horario
+              || bloqueadoJunte
+              || esperandoDatosMesa
+            }
           >
             {mut.isPending ? 'Guardando…' : 'Guardar cambios'}
           </Button>
@@ -356,31 +383,13 @@ function EditModal({ open, onClose, reserva, onSaved }) {
       }
     >
       <div className="space-y-4">
-        <div>
-          <Label htmlFor="ed-nombre">Nombre</Label>
-          <Input id="ed-nombre" value={form.nombre || ''} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <Label htmlFor="ed-personas">Personas</Label>
-            <Input
-              id="ed-personas"
-              type="number"
-              min={1}
-              max={50}
-              inputMode="numeric"
-              value={form.personas ?? ''}
-              onChange={(e) => {
-                setForm({ ...form, personas: e.target.value });
-                resetJunte();
-              }}
-            />
-          </div>
-          <div>
-            <Label htmlFor="ed-dia">Día</Label>
+            <label className="block text-xs font-medium text-slate-600" htmlFor="ed-dia">Día</label>
             <Input
               id="ed-dia"
               type="date"
+              className="mt-1"
               value={form.dia || ''}
               onChange={(e) => {
                 setForm({ ...form, dia: e.target.value, horario: '' });
@@ -388,17 +397,34 @@ function EditModal({ open, onClose, reserva, onSaved }) {
               }}
             />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600" htmlFor="ed-personas">Personas</label>
+            <Input
+              id="ed-personas"
+              type="number"
+              min={1}
+              max={50}
+              inputMode="numeric"
+              className="mt-1"
+              value={form.personas ?? ''}
+              onChange={(e) => {
+                setForm({ ...form, personas: e.target.value });
+                resetJunte();
+              }}
+            />
+          </div>
         </div>
 
         <div>
-          <Label htmlFor="ed-horario">Horarios disponibles</Label>
+          <label className="block text-xs font-medium text-slate-600" htmlFor="ed-horario">Horarios disponibles</label>
           {disp.isLoading ? (
-            <p className="text-xs text-slate-500">Cargando disponibilidad…</p>
+            <p className="mt-1 text-xs text-slate-500">Cargando disponibilidad…</p>
           ) : disp.isError ? (
-            <p className="text-xs text-rose-600">Error: {apiError(disp.error)}</p>
+            <p className="mt-1 text-xs text-rose-600">Error: {apiError(disp.error)}</p>
           ) : (
             <Select
               id="ed-horario"
+              className="mt-1"
               value={form.horario}
               onChange={(e) => {
                 setForm({ ...form, horario: e.target.value });
@@ -406,12 +432,12 @@ function EditModal({ open, onClose, reserva, onSaved }) {
               }}
             >
               <option value="">Elegí un horario…</option>
-              {horarios.map((h) => (
-                <option key={h.valor} value={String(h.valor)}>{h.label}</option>
+              {horariosOptions.map((h) => (
+                <option key={h.valor} value={h.valor}>{h.label}</option>
               ))}
             </Select>
           )}
-          {!disp.isLoading && !disp.isError && canFetch && horarios.length === 0 && (
+          {!disp.isLoading && !disp.isError && canFetch && horariosOptions.length === 0 && (
             <p className="mt-1 text-xs text-slate-500">No hay horarios disponibles para esa fecha y cantidad de personas.</p>
           )}
         </div>
@@ -466,8 +492,13 @@ function EditModal({ open, onClose, reserva, onSaved }) {
           </div>
         )}
 
+        <div>
+          <Label htmlFor="ed-nombre">Nombre</Label>
+          <Input id="ed-nombre" value={form.nombre || ''} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+        </div>
+
         <p className="text-xs text-slate-500">
-          Si cambiás día, hora o personas, el sistema vuelve a buscar mesa; cuando hace falta junte, elegí las mesas antes de guardar.
+          Horarios según disponibilidad del día y cantidad de personas (como al crear). Si subís personas y ninguna mesa sola alcanza, juntá mesas como en creación.
         </p>
         <ErrorText>{error}</ErrorText>
       </div>

@@ -310,15 +310,14 @@ function CrearReservaModal({ open, onClose, onCreated }) {
     [libres, personas],
   );
   const sumMaxLibres = useMemo(() => libres.reduce((s, m) => s + m.max_personas, 0), [libres]);
-  const sumMinLibres = useMemo(() => libres.reduce((s, m) => s + m.min_personas, 0), [libres]);
+  /** Junte: alcanza con que la suma de cupos máximos cubra el grupo; no sumar mins de *todas* las mesas (eso bloqueaba grupos chicos con muchas mesas libres). */
   const ofrecerJunte =
     esAdmin &&
     canFetchMesas &&
     mesasLibres.isSuccess &&
-    libres.length > 0 &&
+    libres.length >= 2 &&
     !canSingle &&
-    sumMaxLibres >= personas &&
-    personas >= sumMinLibres;
+    sumMaxLibres >= personas;
 
   const selModels = useMemo(
     () => libres.filter((m) => junteSel.includes(m.numero_mesa)),
