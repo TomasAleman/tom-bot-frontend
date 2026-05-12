@@ -40,7 +40,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard tone="brand"   title="Reservas hoy" value={hoy.confirmadas} sub={`${hoy.personas} personas`} />
           <KpiCard tone="warning" title="Canceladas hoy" value={hoy.canceladas} />
-          <KpiCard tone="danger"  title="No-show hoy" value={hoy.no_show} />
+          <KpiCard tone="danger"  title="No vino hoy" value={hoy.no_show} />
           <KpiCard                title="Personas hoy" value={hoy.personas} />
         </div>
       </section>
@@ -50,7 +50,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard title="Confirmadas" value={semana.confirmadas} sub={`${semana.personas} personas`} />
           <KpiCard title="Canceladas"  value={semana.canceladas} />
-          <KpiCard title="No-show"     value={semana.no_show} />
+          <KpiCard title="No vino"     value={semana.no_show} />
           <KpiCard title="Personas"    value={semana.personas} />
         </div>
       </section>
@@ -60,7 +60,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <KpiCard title="Confirmadas" value={mes.confirmadas} />
           <KpiCard title="Canceladas"  value={mes.canceladas} />
-          <KpiCard title="No-show"     value={mes.no_show} />
+          <KpiCard title="No vino"     value={mes.no_show} />
           <KpiCard title="Personas"    value={mes.personas} />
         </div>
       </section>

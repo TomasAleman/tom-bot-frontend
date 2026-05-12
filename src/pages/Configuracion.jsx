@@ -113,10 +113,6 @@ export default function Configuracion() {
   });
 
   const claves = useMemo(() => Object.keys(schema).sort(), [schema]);
-  const legacyClaves = useMemo(
-    () => Object.keys(config).filter((k) => !schema[k]).sort(),
-    [config, schema]
-  );
 
   if (isLoading) return <p className="text-sm text-slate-500">Cargando configuración…</p>;
   if (isError) return <p className="text-sm text-rose-600">Error: {apiError(error)}</p>;
@@ -261,28 +257,6 @@ export default function Configuracion() {
               );
             })}
           </ul>
-        )}
-
-        {legacyClaves.length > 0 && (
-          <details className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-600 ring-1 ring-slate-200">
-            <summary className="cursor-pointer font-medium text-slate-700">
-              Parámetros heredados ({legacyClaves.length})
-            </summary>
-            <p className="mt-2 text-xs text-slate-500">
-              Estos parámetros existen en la base pero no están en el catálogo
-              actual. Se muestran como referencia y solo pueden modificarse vía API.
-            </p>
-            <ul className="mt-2 space-y-1">
-              {legacyClaves.map((k) => (
-                <li key={k} className="text-xs">
-                  <code className="rounded bg-white px-1 py-0.5 ring-1 ring-slate-200">
-                    {k}
-                  </code>{' '}
-                  = <span className="text-slate-700">{String(config[k]?.valor)}</span>
-                </li>
-              ))}
-            </ul>
-          </details>
         )}
 
         <ErrorText>{errMsg}</ErrorText>

@@ -102,7 +102,7 @@ export default function ReservaDetalle() {
           disabled={!editable}
           onClick={() => setConfirmOpen('noshow')}
         >
-          <Icon name="alert" className="h-4 w-4" /> Marcar no-show
+          <Icon name="alert" className="h-4 w-4" /> Marcar como no vino
         </Button>
         <Button
           variant="danger"
@@ -142,8 +142,8 @@ export default function ReservaDetalle() {
 
       <ConfirmActionModal
         open={confirmOpen === 'noshow'}
-        title="Marcar como no-show"
-        message="Esto marca la reserva como No-show y libera su mesa. ¿Continuar?"
+        title="Marcar como no vino"
+        message="Esto marca que el cliente no vino y libera la mesa. ¿Continuar?"
         confirmLabel="Sí, marcar"
         confirmVariant="warning"
         loading={noShowMut.isPending}

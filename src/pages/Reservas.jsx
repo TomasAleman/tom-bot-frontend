@@ -136,7 +136,7 @@ export default function Reservas() {
                 <option value="">Todos</option>
                 <option value="Confirmada">Confirmada</option>
                 <option value="Cancelada">Cancelada</option>
-                <option value="NoShow">No-show</option>
+                <option value="NoShow">No vino</option>
               </Select>
             </div>
             <div>

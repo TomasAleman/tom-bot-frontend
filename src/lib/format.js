@@ -75,7 +75,7 @@ export function labelEstado(estado) {
   switch ((estado || '').toLowerCase()) {
     case 'confirmada': return 'Confirmada';
     case 'cancelada':  return 'Cancelada';
-    case 'noshow':     return 'No-show';
+    case 'noshow':     return 'No vino';
     default:           return estado || '—';
   }
 }
