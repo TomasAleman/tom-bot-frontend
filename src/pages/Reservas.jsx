@@ -24,6 +24,21 @@ function todayIso() {
   return `${y}-${m}-${day}`;
 }
 
+/** YYYY-MM-DD = hoy + `dias` (en calendario local). */
+function addDaysIso(dias) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + dias);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function defaultFiltrosFechas() {
+  return { dia_desde: todayIso(), dia_hasta: addDaysIso(7) };
+}
+
 /** Prefijo país + móvil AR (Evolution / n8n suelen usar 549…). */
 const AR_TEL_PREFIX = '549';
 
@@ -45,14 +60,12 @@ export default function Reservas() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  /** Sin `dia_desde`/`dia_hasta` no se envían a la API: lista por todos los días (paginada). Si el default fuera “hoy”, la búsqueda por nombre/teléfono parecía no funcionar al excluir reservas pasadas. */
-  const [filtros, setFiltros] = useState({
-    dia_desde: '',
-    dia_hasta: '',
+  const [filtros, setFiltros] = useState(() => ({
+    ...defaultFiltrosFechas(),
     estado: '',
     q: '',
     order: 'dia_asc',
-  });
+  }));
   const [page, setPage] = useState(1);
   const [filtrosOpen, setFiltrosOpen] = useState(false);
   const [crearOpen, setCrearOpen] = useState(false);
@@ -80,7 +93,7 @@ export default function Reservas() {
     setPage(1);
   };
   const limpiar = () => {
-    setFiltros({ dia_desde: '', dia_hasta: '', estado: '', q: '', order: 'dia_asc' });
+    setFiltros({ ...defaultFiltrosFechas(), estado: '', q: '', order: 'dia_asc' });
     setPage(1);
   };
 
@@ -124,7 +137,7 @@ export default function Reservas() {
         {filtrosOpen && (
           <div className="mt-3 space-y-2">
             <p className="text-xs text-slate-500">
-              Dejá vacíos Desde y Hasta para buscar en todas las fechas. Si completás fechas, se combinan con el texto y el estado.
+              Por defecto: desde hoy hasta dentro de 7 días. Si vaciás Desde y Hasta, se listan todas las fechas (paginado). El texto y el estado se combinan con el rango de fechas.
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
             <div>
