@@ -27,12 +27,12 @@ function todayIso() {
 /** Prefijo país + móvil AR (Evolution / n8n suelen usar 549…). */
 const AR_TEL_PREFIX = '549';
 
-/** Solo dígitos que el usuario escribe después del 549; si pegan 549… o 54… se normaliza. */
+/** Solo dígitos que el usuario escribe después del 549; si pegan 549… o 54… se normaliza. Máx. 10 dígitos. */
 function sanitizeTelefonoSuffix(raw) {
   let d = String(raw || '').replace(/\D/g, '');
   if (d.startsWith('549')) d = d.slice(3);
   else if (d.startsWith('54')) d = d.slice(2);
-  return d.slice(0, 12);
+  return d.slice(0, 10);
 }
 
 function telefonoCompleto549(suffix) {
@@ -283,7 +283,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
   }, [open]);
 
   const esAdmin = puedeCrearReserva(usuario?.rol);
-  const telefonoSuffixOk = sanitizeTelefonoSuffix(form.telefono).length >= 10;
+  const telefonoSuffixOk = sanitizeTelefonoSuffix(form.telefono).length === 10;
   const dia = form.dia;
   const personas = Number(form.personas || 0);
   const horarioMin = form.horario !== '' && form.horario != null ? Number(form.horario) : null;
@@ -498,6 +498,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
               <input
                 type="tel"
                 inputMode="numeric"
+                maxLength={10}
                 autoComplete="tel-national"
                 className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 text-base outline-none
                   placeholder:text-slate-400"
@@ -510,7 +511,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
               />
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              Código de área y número (10 dígitos o más), sin 0 inicial del área si no corresponde.
+              Código de área y número: exactamente 10 dígitos (sin el 549). Sin 0 inicial del área si no corresponde.
             </p>
           </div>
           <div>
