@@ -71,6 +71,14 @@ export default function ReservaDetalle() {
           <Row label="Horario"  value={fmtHora(reserva.horario_hora)} />
           <Row label="Turno"    value={reserva.turno || '—'} />
           <Row label="Personas" value={reserva.personas} />
+          <Row
+            label="Mesas"
+            value={
+              Array.isArray(reserva.mesas) && reserva.mesas.length
+                ? reserva.mesas.join(' + ')
+                : (reserva.numero_mesa || '—')
+            }
+          />
           <Row label="Creada"   value={fmtTimestamp(reserva.created_at)} />
           <Row label="Actualizada" value={fmtTimestamp(reserva.updated_at)} />
         </dl>

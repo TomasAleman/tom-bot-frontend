@@ -165,6 +165,9 @@ export default function Reservas() {
                     <span className="font-medium text-slate-900">{fmtFechaCorta(r.dia)} · {fmtHora(r.horario_hora)}</span>
                     <span className="text-slate-600">{r.personas} pers.</span>
                   </div>
+                  {Array.isArray(r.mesas) && r.mesas.length > 1 && (
+                    <p className="mt-1 text-xs text-slate-500">Mesas: {r.mesas.join(' + ')}</p>
+                  )}
                 </Link>
               </li>
             ))}
@@ -180,6 +183,7 @@ export default function Reservas() {
                     <th className="px-4 py-3 text-left">Día</th>
                     <th className="px-4 py-3 text-left">Hora</th>
                     <th className="px-4 py-3 text-left">Personas</th>
+                    <th className="px-4 py-3 text-left">Mesas</th>
                     <th className="px-4 py-3 text-left">Estado</th>
                     <th className="px-4 py-3"></th>
                   </tr>
@@ -192,6 +196,9 @@ export default function Reservas() {
                       <td className="px-4 py-3 text-slate-700">{fmtFechaCorta(r.dia)}</td>
                       <td className="px-4 py-3 text-slate-700">{fmtHora(r.horario_hora)}</td>
                       <td className="px-4 py-3 text-slate-700">{r.personas}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {Array.isArray(r.mesas) && r.mesas.length ? r.mesas.join(' + ') : (r.numero_mesa || '—')}
+                      </td>
                       <td className="px-4 py-3"><EstadoBadge estado={r.estado} /></td>
                       <td className="px-4 py-3 text-right">
                         <Link to={`/reservas/${r.id}`} className="text-sm font-medium text-slate-700 hover:underline">
@@ -246,11 +253,16 @@ export default function Reservas() {
 function CrearReservaModal({ open, onClose, onCreated }) {
   const { usuario } = useAuth();
   const [form, setForm] = useState({ dia: todayIso(), personas: 2, horario: '', telefono: '', nombre: '' });
+  const [junteSel, setJunteSel] = useState([]);
+  const [juntePasoActivo, setJuntePasoActivo] = useState(false);
   const [error, setError] = useState(null);
 
+  const esAdmin = puedeCrearReserva(usuario?.rol);
   const dia = form.dia;
   const personas = Number(form.personas || 0);
+  const horarioMin = form.horario !== '' && form.horario != null ? Number(form.horario) : null;
   const canFetch = Boolean(open && dia && personas >= 1);
+  const canFetchMesas = Boolean(open && esAdmin && dia && horarioMin != null && Number.isFinite(horarioMin));
 
   const disp = useQuery({
     queryKey: ['reservas-disponibilidad', dia, personas],
@@ -258,12 +270,47 @@ function CrearReservaModal({ open, onClose, onCreated }) {
     queryFn: async () => (await api.get(`/reservas/disponibilidad?dia=${encodeURIComponent(dia)}&personas=${encodeURIComponent(String(personas))}`)).data,
   });
 
+  const mesasLibres = useQuery({
+    queryKey: ['reservas-mesas-libres', dia, horarioMin],
+    enabled: canFetchMesas,
+    queryFn: async () => (await api.get(`/reservas/disponibilidad/mesas-libres?dia=${encodeURIComponent(dia)}&horario=${encodeURIComponent(String(horarioMin))}`)).data,
+  });
+
   const horarios = disp.data?.horarios || [];
+  const libres = mesasLibres.data?.mesas || [];
+
+  const canSingle = useMemo(
+    () => libres.some((m) => personas >= m.min_personas && personas <= m.max_personas),
+    [libres, personas],
+  );
+  const sumMaxLibres = useMemo(() => libres.reduce((s, m) => s + m.max_personas, 0), [libres]);
+  const sumMinLibres = useMemo(() => libres.reduce((s, m) => s + m.min_personas, 0), [libres]);
+  const ofrecerJunte =
+    esAdmin &&
+    canFetchMesas &&
+    mesasLibres.isSuccess &&
+    libres.length > 0 &&
+    !canSingle &&
+    sumMaxLibres >= personas &&
+    personas >= sumMinLibres;
+
+  const selModels = useMemo(
+    () => libres.filter((m) => junteSel.includes(m.numero_mesa)),
+    [libres, junteSel],
+  );
+  const sumMinSel = selModels.reduce((s, m) => s + m.min_personas, 0);
+  const sumMaxSel = selModels.reduce((s, m) => s + m.max_personas, 0);
+  const junteValido = junteSel.length >= 2 && personas >= sumMinSel && personas <= sumMaxSel;
+
+  const resetJunte = () => {
+    setJunteSel([]);
+    setJuntePasoActivo(false);
+  };
 
   const crearMut = useMutation({
     mutationFn: async () => {
       setError(null);
-      if (!puedeCrearReserva(usuario?.rol)) throw new Error('No tenés permisos para crear reservas');
+      if (!esAdmin) throw new Error('No tenés permisos para crear reservas');
       const payload = {
         dia: String(form.dia || ''),
         personas: Number(form.personas),
@@ -271,6 +318,9 @@ function CrearReservaModal({ open, onClose, onCreated }) {
         telefono: String(form.telefono || '').trim(),
         nombre: String(form.nombre || '').trim(),
       };
+      if (juntePasoActivo && junteValido) {
+        payload.mesas = [...junteSel].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+      }
       const res = await api.post('/reservas', payload);
       return res.data;
     },
@@ -288,7 +338,15 @@ function CrearReservaModal({ open, onClose, onCreated }) {
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={crearMut.isPending}>Cancelar</Button>
-          <Button variant="primary" onClick={() => crearMut.mutate()} disabled={crearMut.isPending || !form.horario}>
+          <Button
+            variant="primary"
+            onClick={() => crearMut.mutate()}
+            disabled={
+              crearMut.isPending
+              || !form.horario
+              || (ofrecerJunte && (!juntePasoActivo || !junteValido))
+            }
+          >
             {crearMut.isPending ? 'Creando…' : 'Crear'}
           </Button>
         </>
@@ -298,11 +356,27 @@ function CrearReservaModal({ open, onClose, onCreated }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="block text-xs font-medium text-slate-600">Día</label>
-            <Input type="date" value={form.dia} onChange={(e) => setForm((f) => ({ ...f, dia: e.target.value, horario: '' }))} />
+            <Input
+              type="date"
+              value={form.dia}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, dia: e.target.value, horario: '' }));
+                resetJunte();
+              }}
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600">Personas</label>
-            <Input type="number" min={1} max={50} value={form.personas} onChange={(e) => setForm((f) => ({ ...f, personas: e.target.value, horario: '' }))} />
+            <Input
+              type="number"
+              min={1}
+              max={50}
+              value={form.personas}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, personas: e.target.value, horario: '' }));
+                resetJunte();
+              }}
+            />
           </div>
         </div>
 
@@ -313,7 +387,13 @@ function CrearReservaModal({ open, onClose, onCreated }) {
           ) : disp.isError ? (
             <p className="text-xs text-rose-600">Error: {apiError(disp.error)}</p>
           ) : (
-            <Select value={form.horario} onChange={(e) => setForm((f) => ({ ...f, horario: e.target.value }))}>
+            <Select
+              value={form.horario}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, horario: e.target.value }));
+                resetJunte();
+              }}
+            >
               <option value="">Elegí un horario…</option>
               {horarios.map((h) => (
                 <option key={h.valor} value={h.valor}>{h.label}</option>
@@ -324,6 +404,56 @@ function CrearReservaModal({ open, onClose, onCreated }) {
             <p className="mt-1 text-xs text-slate-500">No hay horarios disponibles para esa fecha y cantidad de personas.</p>
           )}
         </div>
+
+        {ofrecerJunte && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+            <p className="mb-2">Ninguna mesa sola alcanza para {personas} personas en este horario, pero hay cupo juntando mesas.</p>
+            {!juntePasoActivo ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => { setJuntePasoActivo(true); setJunteSel([]); }}
+              >
+                Juntar mesas
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs font-medium">Seleccioná las mesas libres (mínimo 2) hasta cubrir {personas} personas (entre suma de mínimos y máximos).</p>
+                <ul className="max-h-40 space-y-1 overflow-y-auto">
+                  {libres.map((m) => (
+                    <li key={m.numero_mesa}>
+                      <label className="flex cursor-pointer items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={junteSel.includes(m.numero_mesa)}
+                          onChange={() => {
+                            setJunteSel((prev) => (
+                              prev.includes(m.numero_mesa)
+                                ? prev.filter((x) => x !== m.numero_mesa)
+                                : [...prev, m.numero_mesa]
+                            ));
+                          }}
+                        />
+                        <span>
+                          Mesa <strong>{m.numero_mesa}</strong> ({m.min_personas}–{m.max_personas} pers.)
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-slate-700">
+                  Seleccionadas: {junteSel.length} · cupo {sumMinSel}–{sumMaxSel} pers.
+                  {juntePasoActivo && junteSel.length >= 2 && (personas < sumMinSel || personas > sumMaxSel) && (
+                    <span className="block text-rose-700">Ajustá la selección: necesitás entre {sumMinSel} y {sumMaxSel} personas con esas mesas.</span>
+                  )}
+                </p>
+                <Button type="button" variant="secondary" className="text-xs" onClick={() => { resetJunte(); }}>
+                  Cancelar junte
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
