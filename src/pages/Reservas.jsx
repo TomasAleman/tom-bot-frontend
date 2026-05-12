@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api, apiError } from '../lib/api.js';
@@ -22,6 +22,23 @@ function todayIso() {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+/** Prefijo país + móvil AR (Evolution / n8n suelen usar 549…). */
+const AR_TEL_PREFIX = '549';
+
+/** Solo dígitos que el usuario escribe después del 549; si pegan 549… o 54… se normaliza. */
+function sanitizeTelefonoSuffix(raw) {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.startsWith('549')) d = d.slice(3);
+  else if (d.startsWith('54')) d = d.slice(2);
+  return d.slice(0, 12);
+}
+
+function telefonoCompleto549(suffix) {
+  const s = sanitizeTelefonoSuffix(suffix);
+  if (!s) return '';
+  return `${AR_TEL_PREFIX}${s}`;
 }
 
 export default function Reservas() {
@@ -257,7 +274,16 @@ function CrearReservaModal({ open, onClose, onCreated }) {
   const [juntePasoActivo, setJuntePasoActivo] = useState(false);
   const [error, setError] = useState(null);
 
+  useEffect(() => {
+    if (!open) return;
+    setForm({ dia: todayIso(), personas: 2, horario: '', telefono: '', nombre: '' });
+    setJunteSel([]);
+    setJuntePasoActivo(false);
+    setError(null);
+  }, [open]);
+
   const esAdmin = puedeCrearReserva(usuario?.rol);
+  const telefonoSuffixOk = sanitizeTelefonoSuffix(form.telefono).length >= 10;
   const dia = form.dia;
   const personas = Number(form.personas || 0);
   const horarioMin = form.horario !== '' && form.horario != null ? Number(form.horario) : null;
@@ -315,7 +341,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
         dia: String(form.dia || ''),
         personas: Number(form.personas),
         horario: Number(form.horario),
-        telefono: String(form.telefono || '').trim(),
+        telefono: telefonoCompleto549(form.telefono),
         nombre: String(form.nombre || '').trim(),
       };
       if (juntePasoActivo && junteValido) {
@@ -344,6 +370,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
             disabled={
               crearMut.isPending
               || !form.horario
+              || !telefonoSuffixOk
               || (ofrecerJunte && (!juntePasoActivo || !junteValido))
             }
           >
@@ -458,7 +485,34 @@ function CrearReservaModal({ open, onClose, onCreated }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="block text-xs font-medium text-slate-600">Teléfono</label>
-            <Input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} placeholder="Ej: 11 2345-6789" />
+            <div
+              className="flex w-full overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm
+                focus-within:border-slate-900 focus-within:ring-1 focus-within:ring-slate-900"
+            >
+              <span
+                className="flex shrink-0 select-none items-center border-r border-slate-300 bg-slate-50 px-3 py-3
+                  text-base font-medium tabular-nums text-slate-800"
+                aria-hidden
+              >
+                {AR_TEL_PREFIX}
+              </span>
+              <input
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 text-base outline-none
+                  placeholder:text-slate-400"
+                value={form.telefono}
+                onChange={(e) => {
+                  const next = sanitizeTelefonoSuffix(e.target.value);
+                  setForm((f) => ({ ...f, telefono: next }));
+                }}
+                placeholder="1123456789"
+              />
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Código de área y número (10 dígitos o más), sin 0 inicial del área si no corresponde.
+            </p>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600">Nombre</label>
