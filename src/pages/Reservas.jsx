@@ -45,8 +45,9 @@ export default function Reservas() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  /** Sin `dia_desde`/`dia_hasta` no se envían a la API: lista por todos los días (paginada). Si el default fuera “hoy”, la búsqueda por nombre/teléfono parecía no funcionar al excluir reservas pasadas. */
   const [filtros, setFiltros] = useState({
-    dia_desde: todayIso(),
+    dia_desde: '',
     dia_hasta: '',
     estado: '',
     q: '',
@@ -121,7 +122,11 @@ export default function Reservas() {
         </div>
 
         {filtrosOpen && (
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-slate-500">
+              Dejá vacíos Desde y Hasta para buscar en todas las fechas. Si completás fechas, se combinan con el texto y el estado.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
             <div>
               <label className="block text-xs font-medium text-slate-600">Desde</label>
               <Input type="date" value={filtros.dia_desde} onChange={(e) => aplicar({ dia_desde: e.target.value })} />
@@ -149,6 +154,7 @@ export default function Reservas() {
             </div>
             <div className="sm:col-span-2 md:col-span-4">
               <Button variant="secondary" onClick={limpiar}>Limpiar filtros</Button>
+            </div>
             </div>
           </div>
         )}
