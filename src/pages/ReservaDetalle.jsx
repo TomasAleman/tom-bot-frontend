@@ -1,13 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, apiError } from '../lib/api.js';
 import EstadoBadge from '../components/EstadoBadge.jsx';
 import Modal from '../components/Modal.jsx';
 import { Button, Input, Label, Select, ErrorText } from '../components/Field.jsx';
-import { fmtFecha, fmtHora, fmtHoraParaInput, fmtTimestamp, minutosDesdeHHMM } from '../lib/format.js';
+import { fmtFecha, fmtHora, fmtTimestamp } from '../lib/format.js';
 import { Icon } from '../components/Icon.jsx';
 import { useAuth } from '../lib/auth.jsx';
+
+/** Admin del restaurante; `restaurante` por compat. */
+function puedeCrearReserva(rol) {
+  return rol === 'admin_restaurante' || rol === 'restaurante';
+}
 
 export default function ReservaDetalle() {
   const { id } = useParams();
@@ -181,8 +186,13 @@ function ConfirmActionModal({ open, onClose, onConfirm, title, message, confirmL
 }
 
 function EditModal({ open, onClose, reserva, onSaved }) {
+  const { usuario } = useAuth();
   const [form, setForm] = useState({});
+  const [junteSel, setJunteSel] = useState([]);
+  const [juntePasoActivo, setJuntePasoActivo] = useState(false);
   const [error, setError] = useState(null);
+
+  const esAdmin = puedeCrearReserva(usuario?.rol);
 
   useEffect(() => {
     if (open) {
@@ -190,19 +200,123 @@ function EditModal({ open, onClose, reserva, onSaved }) {
         nombre: reserva.nombre,
         personas: reserva.personas,
         dia: reserva.dia ? String(reserva.dia).slice(0, 10) : '',
-        horario: fmtHoraParaInput(reserva.horario_hora),
+        horario: String(reserva.horario_hora ?? ''),
       });
+      setJunteSel([]);
+      setJuntePasoActivo(false);
       setError(null);
     }
   }, [open, reserva]);
 
+  const dia = form.dia;
+  const personas = Number(form.personas || 0);
+  const horarioMin = form.horario !== '' && form.horario != null ? Number(form.horario) : null;
+
+  const canFetch = Boolean(open && dia && personas >= 1);
+  const canFetchMesas = Boolean(open && esAdmin && dia && horarioMin != null && Number.isFinite(horarioMin));
+
+  const disp = useQuery({
+    queryKey: ['reservas-disponibilidad', dia, personas, reserva.id],
+    enabled: canFetch,
+    queryFn: async () =>
+      (await api.get(
+        `/reservas/disponibilidad?dia=${encodeURIComponent(dia)}&personas=${encodeURIComponent(String(personas))}&exclude_reserva_id=${encodeURIComponent(String(reserva.id))}`
+      )).data,
+  });
+
+  const mesasLibres = useQuery({
+    queryKey: ['reservas-mesas-libres', dia, horarioMin, reserva.id],
+    enabled: canFetchMesas,
+    queryFn: async () =>
+      (await api.get(
+        `/reservas/disponibilidad/mesas-libres?dia=${encodeURIComponent(dia)}&horario=${encodeURIComponent(String(horarioMin))}&exclude_reserva_id=${encodeURIComponent(String(reserva.id))}`
+      )).data,
+  });
+
+  const horarios = disp.data?.horarios || [];
+  const libres = mesasLibres.data?.mesas || [];
+
+  const canSingle = useMemo(
+    () => libres.some((m) => personas >= m.min_personas && personas <= m.max_personas),
+    [libres, personas],
+  );
+  const sumMaxLibres = useMemo(() => libres.reduce((s, m) => s + m.max_personas, 0), [libres]);
+  const sumMinLibres = useMemo(() => libres.reduce((s, m) => s + m.min_personas, 0), [libres]);
+  const ofrecerJunte =
+    esAdmin &&
+    canFetchMesas &&
+    mesasLibres.isSuccess &&
+    libres.length > 0 &&
+    !canSingle &&
+    sumMaxLibres >= personas &&
+    personas >= sumMinLibres;
+
+  const selModels = useMemo(
+    () => libres.filter((m) => junteSel.includes(m.numero_mesa)),
+    [libres, junteSel],
+  );
+  const sumMinSel = selModels.reduce((s, m) => s + m.min_personas, 0);
+  const sumMaxSel = selModels.reduce((s, m) => s + m.max_personas, 0);
+  const junteValido = junteSel.length >= 2 && personas >= sumMinSel && personas <= sumMaxSel;
+
+  const resetJunte = () => {
+    setJunteSel([]);
+    setJuntePasoActivo(false);
+  };
+
+  const diaOrig = reserva.dia ? String(reserva.dia).slice(0, 10) : '';
+
+  const needsMesaRecompute =
+    (form.dia && form.dia !== diaOrig)
+    || (Number.isFinite(horarioMin) && horarioMin !== Number(reserva.horario_hora))
+    || (Number.isFinite(personas) && personas !== Number(reserva.personas));
+
+  const bloqueadoJunte =
+    needsMesaRecompute &&
+    esAdmin &&
+    ofrecerJunte &&
+    !canSingle &&
+    (!juntePasoActivo || !junteValido);
+
   const mut = useMutation({
     mutationFn: async () => {
+      const nombreTrim = String(form.nombre || '').trim();
+      const personasNum = Number(form.personas);
+      const diaIso = String(form.dia || '');
+      const horarioNum = form.horario !== '' && form.horario != null ? Number(form.horario) : NaN;
+
+      const nombreChanged = nombreTrim !== reserva.nombre;
+      const personasChanged = personasNum !== Number(reserva.personas);
+      const diaChanged = diaIso !== diaOrig;
+      const horarioChanged = Number.isFinite(horarioNum) && horarioNum !== Number(reserva.horario_hora);
+
+      const needsRecompute = diaChanged || horarioChanged || personasChanged;
+
+      if (!Number.isFinite(horarioNum)) {
+        throw new Error('Elegí un horario de la lista.');
+      }
+
+      if (needsRecompute && esAdmin && ofrecerJunte && !canSingle) {
+        if (!juntePasoActivo || !junteValido) {
+          throw new Error('En este horario no hay una mesa sola para esa cantidad de personas; usá “Juntar mesas” y elegí al menos dos mesas.');
+        }
+        const payload = {
+          dia: diaIso,
+          personas: personasNum,
+          horario: horarioNum,
+          mesas: [...junteSel].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })),
+        };
+        if (nombreChanged) payload.nombre = nombreTrim;
+        const { data } = await api.patch(`/reservas/${reserva.id}`, payload);
+        return data;
+      }
+
       const cambios = {};
-      if (form.nombre !== reserva.nombre) cambios.nombre = String(form.nombre || '').trim();
-      if (Number(form.personas) !== Number(reserva.personas)) cambios.personas = Number(form.personas);
-      if (form.dia && form.dia !== String(reserva.dia).slice(0, 10)) cambios.dia = form.dia;
-      if (Number(form.horario) !== Number(reserva.horario_hora)) cambios.horario = Number(form.horario);
+      if (nombreChanged) cambios.nombre = nombreTrim;
+      if (personasChanged) cambios.personas = personasNum;
+      if (diaChanged) cambios.dia = diaIso;
+      if (horarioChanged) cambios.horario = horarioNum;
+
       if (Object.keys(cambios).length === 0) {
         throw new Error('No hay cambios para guardar');
       }
@@ -232,7 +346,10 @@ function EditModal({ open, onClose, reserva, onSaved }) {
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={mut.isPending}>Cancelar</Button>
-          <Button onClick={() => { setError(null); mut.mutate(); }} disabled={mut.isPending}>
+          <Button
+            onClick={() => { setError(null); mut.mutate(); }}
+            disabled={mut.isPending || !form.horario || bloqueadoJunte}
+          >
             {mut.isPending ? 'Guardando…' : 'Guardar cambios'}
           </Button>
         </>
@@ -246,25 +363,111 @@ function EditModal({ open, onClose, reserva, onSaved }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="ed-personas">Personas</Label>
-            <Input id="ed-personas" type="number" min={1} max={50} inputMode="numeric"
+            <Input
+              id="ed-personas"
+              type="number"
+              min={1}
+              max={50}
+              inputMode="numeric"
               value={form.personas ?? ''}
-              onChange={(e) => setForm({ ...form, personas: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, personas: e.target.value });
+                resetJunte();
+              }}
             />
           </div>
           <div>
-            <Label htmlFor="ed-horario">Hora (24 h)</Label>
-            <Input id="ed-horario" type="time" step={60}
-              value={form.horario ?? ''}
-              onChange={(e) => setForm({ ...form, horario: e.target.value })}
+            <Label htmlFor="ed-dia">Día</Label>
+            <Input
+              id="ed-dia"
+              type="date"
+              value={form.dia || ''}
+              onChange={(e) => {
+                setForm({ ...form, dia: e.target.value, horario: '' });
+                resetJunte();
+              }}
             />
           </div>
         </div>
+
         <div>
-          <Label htmlFor="ed-dia">Día</Label>
-          <Input id="ed-dia" type="date" value={form.dia || ''} onChange={(e) => setForm({ ...form, dia: e.target.value })} />
+          <Label htmlFor="ed-horario">Horarios disponibles</Label>
+          {disp.isLoading ? (
+            <p className="text-xs text-slate-500">Cargando disponibilidad…</p>
+          ) : disp.isError ? (
+            <p className="text-xs text-rose-600">Error: {apiError(disp.error)}</p>
+          ) : (
+            <Select
+              id="ed-horario"
+              value={form.horario}
+              onChange={(e) => {
+                setForm({ ...form, horario: e.target.value });
+                resetJunte();
+              }}
+            >
+              <option value="">Elegí un horario…</option>
+              {horarios.map((h) => (
+                <option key={h.valor} value={String(h.valor)}>{h.label}</option>
+              ))}
+            </Select>
+          )}
+          {!disp.isLoading && !disp.isError && canFetch && horarios.length === 0 && (
+            <p className="mt-1 text-xs text-slate-500">No hay horarios disponibles para esa fecha y cantidad de personas.</p>
+          )}
         </div>
+
+        {ofrecerJunte && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+            <p className="mb-2">Ninguna mesa sola alcanza para {personas} personas en este horario, pero hay cupo juntando mesas.</p>
+            {!juntePasoActivo ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => { setJuntePasoActivo(true); setJunteSel([]); }}
+              >
+                Juntar mesas
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs font-medium">Seleccioná las mesas libres (mínimo 2) hasta cubrir {personas} personas (entre suma de mínimos y máximos).</p>
+                <ul className="max-h-40 space-y-1 overflow-y-auto">
+                  {libres.map((m) => (
+                    <li key={m.numero_mesa}>
+                      <label className="flex cursor-pointer items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={junteSel.includes(m.numero_mesa)}
+                          onChange={() => {
+                            setJunteSel((prev) => (
+                              prev.includes(m.numero_mesa)
+                                ? prev.filter((x) => x !== m.numero_mesa)
+                                : [...prev, m.numero_mesa]
+                            ));
+                          }}
+                        />
+                        <span>
+                          Mesa <strong>{m.numero_mesa}</strong> ({m.min_personas}–{m.max_personas} pers.)
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-slate-700">
+                  Seleccionadas: {junteSel.length} · cupo {sumMinSel}–{sumMaxSel} pers.
+                  {juntePasoActivo && junteSel.length >= 2 && (personas < sumMinSel || personas > sumMaxSel) && (
+                    <span className="block text-rose-700">Ajustá la selección: necesitás entre {sumMinSel} y {sumMaxSel} personas con esas mesas.</span>
+                  )}
+                </p>
+                <Button type="button" variant="secondary" className="text-xs" onClick={() => { resetJunte(); }}>
+                  Cancelar junte
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
         <p className="text-xs text-slate-500">
-          Los cambios se aplican uno por uno; si para alguno no hay mesa disponible, se aborta.
+          Si cambiás día, hora o personas, el sistema vuelve a buscar mesa; cuando hace falta junte, elegí las mesas antes de guardar.
         </p>
         <ErrorText>{error}</ErrorText>
       </div>
