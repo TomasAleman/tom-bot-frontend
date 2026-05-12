@@ -135,11 +135,7 @@ export default function Reservas() {
         </div>
 
         {filtrosOpen && (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs text-slate-500">
-              Por defecto: desde hoy hasta dentro de 7 días. Si vaciás Desde y Hasta, se listan todas las fechas (paginado). El texto y el estado se combinan con el rango de fechas.
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
             <div>
               <label className="block text-xs font-medium text-slate-600">Desde</label>
               <Input type="date" value={filtros.dia_desde} onChange={(e) => aplicar({ dia_desde: e.target.value })} />
@@ -167,7 +163,6 @@ export default function Reservas() {
             </div>
             <div className="sm:col-span-2 md:col-span-4">
               <Button variant="secondary" onClick={limpiar}>Limpiar filtros</Button>
-            </div>
             </div>
           </div>
         )}
