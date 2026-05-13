@@ -48,7 +48,10 @@ export function apiError(err, fallback = 'Error de red') {
   const data = err?.response?.data;
   if (data?.issues && Array.isArray(data.issues)) {
     const parts = data.issues
-      .map((i) => i.message || (Array.isArray(i.path) ? `${i.path.join('.')}: inválido` : null))
+      .map((i) => {
+        const p = Array.isArray(i.path) && i.path.length ? `${i.path.join('.')}: ` : '';
+        return i.message ? `${p}${i.message}` : p ? `${p}inválido` : null;
+      })
       .filter(Boolean);
     if (parts.length) return parts.join(' · ');
   }

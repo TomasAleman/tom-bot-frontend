@@ -138,6 +138,9 @@ export default function SuperadminUsuarios() {
               <div>
                 <Label>Slug (opcional)</Label>
                 <Input value={restForm.slug} onChange={(e) => setRestForm((s) => ({ ...s, slug: e.target.value }))} />
+                <p className="mt-1 text-xs text-slate-500">
+                  Solo letras minúsculas, números y guiones (sin espacios). Si lo dejás vacío, se genera a partir del nombre.
+                </p>
               </div>
               <div>
                 <Label>Instancia Evolution (opcional)</Label>
