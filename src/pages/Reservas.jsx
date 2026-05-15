@@ -286,6 +286,8 @@ function CrearReservaModal({ open, onClose, onCreated }) {
   const [form, setForm] = useState({ dia: todayIso(), personas: 2, horario: '', telefono: '', nombre: '' });
   const [junteSel, setJunteSel] = useState([]);
   const [juntePasoActivo, setJuntePasoActivo] = useState(false);
+  const [mesaGrandeElegida, setMesaGrandeElegida] = useState('');
+  const [mesaGrandePasoActivo, setMesaGrandePasoActivo] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -293,6 +295,8 @@ function CrearReservaModal({ open, onClose, onCreated }) {
     setForm({ dia: todayIso(), personas: 2, horario: '', telefono: '', nombre: '' });
     setJunteSel([]);
     setJuntePasoActivo(false);
+    setMesaGrandeElegida('');
+    setMesaGrandePasoActivo(false);
     setError(null);
   }, [open]);
 
@@ -324,14 +328,32 @@ function CrearReservaModal({ open, onClose, onCreated }) {
     [libres, personas],
   );
   const sumMaxLibres = useMemo(() => libres.reduce((s, m) => s + m.max_personas, 0), [libres]);
-  /** Junte: alcanza con que la suma de cupos máximos cubra el grupo; no sumar mins de *todas* las mesas (eso bloqueaba grupos chicos con muchas mesas libres). */
+  const minMin = useMemo(
+    () => (libres.length ? Math.min(...libres.map((m) => m.min_personas)) : 0),
+    [libres],
+  );
+  const maxMax = useMemo(
+    () => (libres.length ? Math.max(...libres.map((m) => m.max_personas)) : 0),
+    [libres],
+  );
+  /** Grupo mayor al máximo de una sola mesa libre: juntar ≥2 mesas si la suma de máximos alcanza. */
   const ofrecerJunte =
     esAdmin &&
     canFetchMesas &&
     mesasLibres.isSuccess &&
     libres.length >= 2 &&
     !canSingle &&
+    personas > maxMax &&
     sumMaxLibres >= personas;
+  /** Grupo menor al mínimo de las mesas libres: elegir una mesa con cupo max ≥ personas (sin exigir mínimo). */
+  const seleccionarMesaGrande =
+    esAdmin &&
+    canFetchMesas &&
+    mesasLibres.isSuccess &&
+    libres.length >= 1 &&
+    !canSingle &&
+    personas < minMin &&
+    libres.some((m) => personas <= m.max_personas);
 
   const selModels = useMemo(
     () => libres.filter((m) => junteSel.includes(m.numero_mesa)),
@@ -344,6 +366,10 @@ function CrearReservaModal({ open, onClose, onCreated }) {
   const resetJunte = () => {
     setJunteSel([]);
     setJuntePasoActivo(false);
+  };
+  const resetMesaGrande = () => {
+    setMesaGrandeElegida('');
+    setMesaGrandePasoActivo(false);
   };
 
   const crearMut = useMutation({
@@ -359,6 +385,8 @@ function CrearReservaModal({ open, onClose, onCreated }) {
       };
       if (juntePasoActivo && junteValido) {
         payload.mesas = [...junteSel].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+      } else if (seleccionarMesaGrande && mesaGrandePasoActivo && mesaGrandeElegida) {
+        payload.numero_mesa = mesaGrandeElegida;
       }
       const res = await api.post('/reservas', payload);
       return res.data;
@@ -385,6 +413,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
               || !form.horario
               || !telefonoSuffixOk
               || (ofrecerJunte && (!juntePasoActivo || !junteValido))
+              || (seleccionarMesaGrande && (!mesaGrandePasoActivo || !mesaGrandeElegida))
             }
           >
             {crearMut.isPending ? 'Creando…' : 'Crear'}
@@ -402,6 +431,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
               onChange={(e) => {
                 setForm((f) => ({ ...f, dia: e.target.value, horario: '' }));
                 resetJunte();
+                resetMesaGrande();
               }}
             />
           </div>
@@ -415,6 +445,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
               onChange={(e) => {
                 setForm((f) => ({ ...f, personas: e.target.value, horario: '' }));
                 resetJunte();
+                resetMesaGrande();
               }}
             />
           </div>
@@ -432,6 +463,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
               onChange={(e) => {
                 setForm((f) => ({ ...f, horario: e.target.value }));
                 resetJunte();
+                resetMesaGrande();
               }}
             >
               <option value="">Elegí un horario…</option>
@@ -445,14 +477,66 @@ function CrearReservaModal({ open, onClose, onCreated }) {
           )}
         </div>
 
+        {seleccionarMesaGrande && (
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+            <p className="mb-2">
+              Las mesas libres en este horario tienen un mínimo de {minMin} personas; con {personas} podés reservar
+              en una mesa más grande (se respeta el máximo de cada mesa).
+            </p>
+            {!mesaGrandePasoActivo ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setMesaGrandePasoActivo(true);
+                  setMesaGrandeElegida('');
+                  resetJunte();
+                }}
+              >
+                Seleccionar mesa
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs font-medium">Elegí una mesa (cupo máximo ≥ {personas} pers.)</p>
+                <ul className="max-h-40 space-y-1 overflow-y-auto">
+                  {libres
+                    .filter((m) => personas <= m.max_personas)
+                    .map((m) => (
+                      <li key={m.numero_mesa}>
+                        <label className="flex cursor-pointer items-center gap-2 text-xs">
+                          <input
+                            type="radio"
+                            name="mesa-grande"
+                            checked={mesaGrandeElegida === m.numero_mesa}
+                            onChange={() => setMesaGrandeElegida(m.numero_mesa)}
+                          />
+                          <span>
+                            Mesa <strong>{m.numero_mesa}</strong> ({m.min_personas}–{m.max_personas} pers.)
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                </ul>
+                <Button type="button" variant="secondary" className="text-xs" onClick={() => { resetMesaGrande(); }}>
+                  Cancelar
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
         {ofrecerJunte && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-            <p className="mb-2">Ninguna mesa sola alcanza para {personas} personas en este horario, pero hay cupo juntando mesas.</p>
+            <p className="mb-2">Tu grupo supera el máximo de la mesa más grande disponible ({maxMax} pers.), pero hay cupo juntando mesas.</p>
             {!juntePasoActivo ? (
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => { setJuntePasoActivo(true); setJunteSel([]); }}
+                onClick={() => {
+                  setJuntePasoActivo(true);
+                  setJunteSel([]);
+                  resetMesaGrande();
+                }}
               >
                 Juntar mesas
               </Button>
@@ -493,6 +577,12 @@ function CrearReservaModal({ open, onClose, onCreated }) {
               </div>
             )}
           </div>
+        )}
+
+        {!canSingle && mesasLibres.isSuccess && canFetchMesas && !ofrecerJunte && !seleccionarMesaGrande && (
+          <p className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+            No hay combinación válida de mesas para este horario y cantidad de personas.
+          </p>
         )}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
