@@ -414,7 +414,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
       const code = err?.response?.data?.error;
       if (code === 'sin_disponibilidad') {
         setError(
-          needsRecompute && seleccionarMesaGrande
+          needsMesaRecompute && seleccionarMesaGrande
             ? 'No se pudo guardar: la mesa elegida no está libre o no admite esa cantidad de personas.'
             : 'No hay mesa disponible para esa combinación de día/horario/personas.',
         );
