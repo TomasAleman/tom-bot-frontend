@@ -6,6 +6,15 @@ import EstadoBadge from '../components/EstadoBadge.jsx';
 import { fmtFechaCorta, fmtHora } from '../lib/format.js';
 import { Icon } from '../components/Icon.jsx';
 
+/** Altura máxima del gráfico (equivale a tailwind h-32). */
+const BAR_MAX_PX = 128;
+
+function barHeightPx(confirmadas, maxCount) {
+  const count = confirmadas ?? 0;
+  if (maxCount === 0 || count === 0) return 2;
+  return Math.max(4, Math.round((count / maxCount) * BAR_MAX_PX));
+}
+
 export default function Dashboard() {
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['metricas'],
@@ -20,7 +29,10 @@ export default function Dashboard() {
   }
 
   const { hoy, semana, mes, por_dia, proximas } = data;
-  const maxBar = Math.max(1, ...por_dia.map((d) => (d.confirmadas || 0) + (d.canceladas || 0) + (d.no_show || 0)));
+  const confirmadasPorDia = por_dia.map((d) => d.confirmadas ?? 0);
+  const maxConfirmadas = confirmadasPorDia.length
+    ? Math.max(...confirmadasPorDia)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -70,14 +82,19 @@ export default function Dashboard() {
         <div className="overflow-x-auto">
           <div className="flex h-32 min-w-full items-end gap-1.5 sm:gap-2">
             {por_dia.map((d) => {
-              const total = (d.confirmadas || 0) + (d.canceladas || 0) + (d.no_show || 0);
-              const h = Math.round((total / maxBar) * 100);
+              const count = d.confirmadas ?? 0;
+              const heightPx = barHeightPx(count, maxConfirmadas);
               return (
-                <div key={d.dia} className="flex flex-1 flex-col items-center gap-1">
+                <div
+                  key={d.dia}
+                  className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1"
+                >
                   <div
                     className="w-full rounded-t bg-slate-900/80"
-                    style={{ height: `${h}%`, minHeight: total ? '4px' : '2px' }}
-                    title={`${d.dia}: ${total}`}
+                    style={{ height: heightPx }}
+                    title={`${fmtFechaCorta(d.dia)}: ${count} confirmada${count === 1 ? '' : 's'}`}
+                    role="img"
+                    aria-label={`${fmtFechaCorta(d.dia)}: ${count} reservas confirmadas`}
                   />
                   <span className="text-[10px] text-slate-500">{fmtFechaCorta(d.dia)}</span>
                 </div>
