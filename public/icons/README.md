@@ -1,8 +1,14 @@
 # Iconos PWA
 
-`icon.svg` ya está incluido y funciona en todos los navegadores modernos
-(Chrome/Edge/Firefox móvil y desktop) tanto como favicon como ícono de la
-PWA cuando se "agrega a pantalla de inicio".
+Logo: calendario con check sobre fondo `#0b0f17` (ver `icon.svg`).
+
+`icon.svg` cubre favicon y PWA en navegadores modernos. Los PNG se generan con:
+
+```bash
+npm run icons
+```
+
+(Requiere Node 18+ y `@resvg/resvg-js` en devDependencies.)
 
 ## PNGs (recomendado para mejor compatibilidad con iOS Safari)
 

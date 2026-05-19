@@ -10,7 +10,14 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/icon.svg'],
+      includeAssets: [
+        'favicon.svg',
+        'apple-touch-icon.png',
+        'icons/icon.svg',
+        'icons/icon-192.png',
+        'icons/icon-512.png',
+        'icons/icon-mask-512.png',
+      ],
       manifest: {
         name: 'Panel Reservas',
         short_name: 'Reservas',
@@ -22,7 +29,10 @@ export default defineConfig({
         theme_color: '#0b0f17',
         orientation: 'portrait',
         icons: [
-          { src: 'icons/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: 'icons/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-mask-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

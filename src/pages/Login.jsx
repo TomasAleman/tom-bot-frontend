@@ -5,6 +5,7 @@ import { homePathForRol } from '../lib/roles.js';
 import { apiError } from '../lib/api.js';
 import { Button, Input, Label, ErrorText } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
+import AppLogo from '../components/AppLogo.jsx';
 
 export default function Login() {
   const { login, isAuthenticated, usuario, loading: authLoading, token } = useAuth();
@@ -50,9 +51,7 @@ export default function Login() {
     <div className="flex min-h-full items-center justify-center px-4 py-10 safe-top safe-bottom">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white">
-            <Icon name="calendar" className="h-7 w-7" />
-          </div>
+          <AppLogo size={56} className="mb-3 h-14 w-14" />
           <h1 className="text-xl font-semibold text-slate-900">Panel Reservas</h1>
           <p className="mt-1 text-sm text-slate-500">Ingresá con tus credenciales del restaurante</p>
         </div>

@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import clsx from 'clsx';
 import { Icon } from './Icon.jsx';
+import AppLogo from './AppLogo.jsx';
 import { isRecepcionista } from '../lib/roles.js';
 
 const NAV_ITEMS = [
@@ -26,9 +27,7 @@ export default function Sidebar({ onNavigate, restauranteNombre, rol, hasTenantC
   return (
     <aside className="flex h-full w-72 max-w-[85vw] flex-col border-r border-slate-200 bg-white safe-left">
       <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-4 pt-[max(env(safe-area-inset-top),1.25rem)]">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
-          <Icon name="calendar" className="h-5 w-5" />
-        </div>
+        <AppLogo size={40} className="h-10 w-10 flex-shrink-0" />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-slate-900">Panel Reservas</p>
           <p className="truncate text-xs text-slate-500">
