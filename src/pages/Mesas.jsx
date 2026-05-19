@@ -48,6 +48,25 @@ function toMinutos(hhmm) {
   return h * 60 + m;
 }
 
+/** Mismo día: fin > inicio; cruza medianoche: fin < inicio. Inválido si son iguales. */
+function turnoEsValido(iniMin, finMin) {
+  return iniMin !== finMin;
+}
+
+const HELP_TURNO_TEXT =
+  'El inicio es inclusivo y el fin exclusivo (ej: 20:00–23:00 admite reservas hasta las 22:45). Podés dejar turnos vacíos, pero tenés que completar al menos 1.';
+
+function normTurno(t, label) {
+  const ini = (t.inicio || '').trim();
+  const fin = (t.fin || '').trim();
+  if (!ini && !fin) return null;
+  if (!ini || !fin) throw new Error(`${label}: completá inicio y fin, o dejá ambos vacíos.`);
+  if (!turnoEsValido(toMinutos(ini), toMinutos(fin))) {
+    throw new Error(`${label}: el fin del turno debe ser distinto del inicio.`);
+  }
+  return `${ini}-${fin}`;
+}
+
 export default function Mesas() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(null);
@@ -168,15 +187,6 @@ function BulkTurnosModal({ open, mesas, onClose, onApplied }) {
     setTurnos((t) => ({ ...t, [key]: { ...t[key], [parte]: value } }));
   };
 
-  function normTurno(t, label) {
-    const ini = (t.inicio || '').trim();
-    const fin = (t.fin || '').trim();
-    if (!ini && !fin) return null;
-    if (!ini || !fin) throw new Error(`${label}: completá inicio y fin, o dejá ambos vacíos.`);
-    if (toMinutos(fin) <= toMinutos(ini)) throw new Error(`${label}: el fin del turno debe ser posterior al inicio.`);
-    return `${ini}-${fin}`;
-  }
-
   const mut = useMutation({
     mutationFn: async () => {
       const hmN = normTurno(turnos.manana, 'Primer turno');
@@ -227,8 +237,7 @@ function BulkTurnosModal({ open, mesas, onClose, onApplied }) {
     >
       <div className="space-y-4">
         <p className="text-xs text-slate-500">
-          Esto reemplaza los turnos de <b>todas</b> las mesas. El inicio es inclusivo y el fin exclusivo.
-          Podés dejar turnos vacíos, pero tenés que completar al menos 1.
+          Esto reemplaza los turnos de <b>todas</b> las mesas. {HELP_TURNO_TEXT}
         </p>
 
         <TurnoRow
@@ -295,19 +304,6 @@ function MesaModal({ mesa, onClose, onSaved }) {
       if (maxPersonas < 1 || maxPersonas > 100) throw new Error('Máx. personas debe estar entre 1 y 100.');
       if (maxPersonas < minPersonas) throw new Error('Máx. personas debe ser mayor o igual a mín. personas.');
 
-      function normTurno(t, label) {
-        const ini = (t.inicio || '').trim();
-        const fin = (t.fin || '').trim();
-        if (!ini && !fin) return null;
-        if (!ini || !fin) {
-          throw new Error(`${label}: completá inicio y fin, o dejá ambos vacíos.`);
-        }
-        if (toMinutos(fin) <= toMinutos(ini)) {
-          throw new Error(`${label}: el fin del turno debe ser posterior al inicio.`);
-        }
-        return `${ini}-${fin}`;
-      }
-
       const hmN = normTurno(turnos.manana, 'Primer turno');
       const hmdN = normTurno(turnos.mediodia, 'Segundo turno');
       const htN = normTurno(turnos.tarde, 'Tercer turno');
@@ -371,9 +367,7 @@ function MesaModal({ mesa, onClose, onSaved }) {
           </div>
         </div>
         <div className="space-y-3">
-          <p className="text-xs text-slate-500">
-            El inicio es inclusivo y el fin exclusivo (ej: 20:00–23:00 admite reservas hasta las 22). Podés dejar turnos vacíos, pero tenés que completar al menos 1.
-          </p>
+          <p className="text-xs text-slate-500">{HELP_TURNO_TEXT}</p>
           <TurnoRow
             label="Primer turno"
             idPrefix="m-mn"
