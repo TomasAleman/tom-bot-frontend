@@ -370,7 +370,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
         const payload = {
           dia: diaIso,
           personas: personasNum,
-          horario: horarioNum,
+          horario: fmtHora(horarioNum),
           mesas: [...junteSel].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })),
         };
         if (nombreChanged) payload.nombre = nombreTrim;
@@ -385,7 +385,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
         const payload = {
           dia: diaIso,
           personas: personasNum,
-          horario: horarioNum,
+          horario: fmtHora(horarioNum),
           numero_mesa: mesaGrandeElegida,
         };
         if (nombreChanged) payload.nombre = nombreTrim;
@@ -397,7 +397,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
       if (nombreChanged) cambios.nombre = nombreTrim;
       if (personasChanged) cambios.personas = personasNum;
       if (diaChanged) cambios.dia = diaIso;
-      if (horarioChanged) cambios.horario = horarioNum;
+      if (horarioChanged) cambios.horario = fmtHora(horarioNum);
 
       if (Object.keys(cambios).length === 0) {
         throw new Error('No hay cambios para guardar');

@@ -379,7 +379,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
       const payload = {
         dia: String(form.dia || ''),
         personas: Number(form.personas),
-        horario: Number(form.horario),
+        horario: fmtHora(Number(form.horario)),
         telefono: telefonoCompleto549(form.telefono),
         nombre: String(form.nombre || '').trim(),
       };
