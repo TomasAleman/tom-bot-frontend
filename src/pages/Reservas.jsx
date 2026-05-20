@@ -452,7 +452,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600">Horarios disponibles</label>
+          <label className="block text-xs font-medium text-slate-600">Horario de ingreso</label>
           {disp.isLoading ? (
             <p className="text-xs text-slate-500">Cargando disponibilidad…</p>
           ) : disp.isError ? (
@@ -466,14 +466,14 @@ function CrearReservaModal({ open, onClose, onCreated }) {
                 resetMesaGrande();
               }}
             >
-              <option value="">Elegí un horario…</option>
+              <option value="">Elegí horario de ingreso…</option>
               {horarios.map((h) => (
-                <option key={h.valor} value={h.valor}>{h.label}</option>
+                <option key={h.valor} value={h.valor}>{fmtHora(Number(h.valor))}</option>
               ))}
             </Select>
           )}
           {!disp.isLoading && !disp.isError && canFetch && horarios.length === 0 && (
-            <p className="mt-1 text-xs text-slate-500">No hay horarios disponibles para esa fecha y cantidad de personas.</p>
+            <p className="mt-1 text-xs text-slate-500">No hay turnos con mesa libre para esa fecha y cantidad de personas.</p>
           )}
         </div>
 
@@ -615,7 +615,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
               />
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              Código de área y número: exactamente 10 dígitos (sin el 549). Sin 0 inicial del área si no corresponde.
+              Código de área y número: Sin 0 inicial del área.
             </p>
           </div>
           <div>
@@ -625,9 +625,6 @@ function CrearReservaModal({ open, onClose, onCreated }) {
         </div>
 
         {error && <p className="text-xs text-rose-600">Error: {apiError(error)}</p>}
-        {disp.data?.turnos?.length ? (
-          <p className="text-xs text-slate-500">Turnos: {disp.data.turnos.join(' · ')}</p>
-        ) : null}
       </div>
     </Modal>
   );

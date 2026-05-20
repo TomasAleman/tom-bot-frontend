@@ -54,7 +54,7 @@ function turnoEsValido(iniMin, finMin) {
 }
 
 const HELP_TURNO_TEXT =
-  'El inicio es inclusivo y el fin exclusivo (ej: 20:00–23:00 admite reservas hasta las 22:45). Podés dejar turnos vacíos, pero tenés que completar al menos 1.';
+  'El rango define la ventana del turno (inicio y fin inclusivos). Las reservas se hacen solo a la hora de inicio (ej: 20:30–23:45 → ingreso 20:30). Podés dejar turnos vacíos, pero tenés que completar al menos 1.';
 
 function normTurno(t, label) {
   const ini = (t.inicio || '').trim();

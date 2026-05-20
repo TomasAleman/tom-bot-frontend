@@ -257,7 +257,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
     const list = [...(disp.data?.horarios || [])];
     const cur = Number(reserva.horario_hora);
     if (Number.isFinite(cur) && cur >= 0 && cur <= 1439 && !list.some((h) => Number(h.valor) === cur)) {
-      list.push({ valor: cur, label: `${fmtHora(cur)} (actual)` });
+      list.push({ valor: cur, esActual: true });
     }
     return list.sort((a, b) => Number(a.valor) - Number(b.valor));
   }, [disp.data?.horarios, reserva.horario_hora]);
@@ -353,7 +353,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
       const needsRecompute = diaChanged || horarioChanged || personasChanged;
 
       if (!Number.isFinite(horarioNum)) {
-        throw new Error('Elegí un horario de la lista.');
+        throw new Error('Elegí un horario de ingreso de la lista.');
       }
 
       if (needsRecompute && (disp.isLoading || disp.isFetching)) {
@@ -483,7 +483,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600" htmlFor="ed-horario">Horarios disponibles</label>
+          <label className="block text-xs font-medium text-slate-600" htmlFor="ed-horario">Horario de ingreso</label>
           {disp.isLoading ? (
             <p className="mt-1 text-xs text-slate-500">Cargando disponibilidad…</p>
           ) : disp.isError ? (
@@ -499,14 +499,16 @@ function EditModal({ open, onClose, reserva, onSaved }) {
                 resetMesaGrande();
               }}
             >
-              <option value="">Elegí un horario…</option>
+              <option value="">Elegí horario de ingreso…</option>
               {horariosOptions.map((h) => (
-                <option key={h.valor} value={h.valor}>{h.label}</option>
+                <option key={h.valor} value={h.valor}>
+                  {h.esActual ? `${fmtHora(Number(h.valor))} (actual)` : fmtHora(Number(h.valor))}
+                </option>
               ))}
             </Select>
           )}
           {!disp.isLoading && !disp.isError && canFetch && horariosOptions.length === 0 && (
-            <p className="mt-1 text-xs text-slate-500">No hay horarios disponibles para esa fecha y cantidad de personas.</p>
+            <p className="mt-1 text-xs text-slate-500">No hay turnos con mesa libre para esa fecha y cantidad de personas.</p>
           )}
         </div>
 
@@ -624,7 +626,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
         </div>
 
         <p className="text-xs text-slate-500">
-          Horarios según disponibilidad del día y cantidad de personas. Si el grupo es muy chico para el mínimo de las mesas libres, elegí una mesa más grande; si es muy grande para una sola mesa, juntá mesas.
+          Elegí el horario de ingreso del turno (no cualquier minuto del rango). Si el grupo es muy chico para el mínimo de las mesas libres, elegí una mesa más grande; si es muy grande para una sola mesa, juntá mesas.
         </p>
         <ErrorText>{error}</ErrorText>
       </div>
