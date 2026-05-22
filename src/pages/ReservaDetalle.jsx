@@ -244,11 +244,11 @@ function EditModal({ open, onClose, reserva, onSaved }) {
   });
 
   const mesasLibres = useQuery({
-    queryKey: ['reservas-mesas-libres', dia, horarioMin, reserva.id],
+    queryKey: ['reservas-mesas-libres', dia, horarioMin, personas, reserva.id],
     enabled: canFetchMesas,
     queryFn: async () =>
       (await api.get(
-        `/reservas/disponibilidad/mesas-libres?dia=${encodeURIComponent(dia)}&horario=${encodeURIComponent(String(horarioMin))}&exclude_reserva_id=${encodeURIComponent(String(reserva.id))}`
+        `/reservas/disponibilidad/mesas-libres?dia=${encodeURIComponent(dia)}&horario=${encodeURIComponent(String(horarioMin))}&personas=${encodeURIComponent(String(personas))}&exclude_reserva_id=${encodeURIComponent(String(reserva.id))}`
       )).data,
   });
 

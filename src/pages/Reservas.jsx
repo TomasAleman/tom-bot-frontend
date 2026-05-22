@@ -315,9 +315,9 @@ function CrearReservaModal({ open, onClose, onCreated }) {
   });
 
   const mesasLibres = useQuery({
-    queryKey: ['reservas-mesas-libres', dia, horarioMin],
+    queryKey: ['reservas-mesas-libres', dia, horarioMin, personas],
     enabled: canFetchMesas,
-    queryFn: async () => (await api.get(`/reservas/disponibilidad/mesas-libres?dia=${encodeURIComponent(dia)}&horario=${encodeURIComponent(String(horarioMin))}`)).data,
+    queryFn: async () => (await api.get(`/reservas/disponibilidad/mesas-libres?dia=${encodeURIComponent(dia)}&horario=${encodeURIComponent(String(horarioMin))}&personas=${encodeURIComponent(String(personas))}`)).data,
   });
 
   const horarios = disp.data?.horarios || [];
