@@ -6,6 +6,7 @@ import EstadoBadge from '../components/EstadoBadge.jsx';
 import { Input, Select, Button } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
 import { fmtFechaCorta, fmtHora } from '../lib/format.js';
+import { labelHorarioOption } from '../lib/horarioDisponibilidad.jsx';
 import Modal from '../components/Modal.jsx';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -468,7 +469,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
             >
               <option value="">Elegí horario de ingreso…</option>
               {horarios.map((h) => (
-                <option key={h.valor} value={h.valor}>{fmtHora(Number(h.valor))}</option>
+                <option key={h.valor} value={h.valor}>{labelHorarioOption(h)}</option>
               ))}
             </Select>
           )}

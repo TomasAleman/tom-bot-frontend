@@ -6,6 +6,7 @@ import EstadoBadge from '../components/EstadoBadge.jsx';
 import Modal from '../components/Modal.jsx';
 import { Button, Input, Label, Select, ErrorText } from '../components/Field.jsx';
 import { fmtFecha, fmtHora, fmtTimestamp } from '../lib/format.js';
+import { labelHorarioOption } from '../lib/horarioDisponibilidad.jsx';
 import { Icon } from '../components/Icon.jsx';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -502,11 +503,11 @@ function EditModal({ open, onClose, reserva, onSaved }) {
               <option value="">Elegí horario de ingreso…</option>
               {horariosOptions.map((h) => (
                 <option key={h.valor} value={h.valor}>
-                  {h.esActual ? `${fmtHora(Number(h.valor))} (actual)` : fmtHora(Number(h.valor))}
+                  {labelHorarioOption(h)}
                 </option>
               ))}
             </Select>
-          )}
+          )} 
           {!disp.isLoading && !disp.isError && canFetch && horariosOptions.length === 0 && (
             <p className="mt-1 text-xs text-slate-500">No hay turnos con mesa libre para esa fecha y cantidad de personas.</p>
           )}
