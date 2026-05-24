@@ -6,7 +6,7 @@ import EstadoBadge from '../components/EstadoBadge.jsx';
 import { Input, Select, Button } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
 import { fmtFechaCorta, fmtHora } from '../lib/format.js';
-import { labelHorarioOption } from '../lib/horarioDisponibilidad.jsx';
+import { labelHorarioOption, mesasGrandesParaPersonas } from '../lib/horarioDisponibilidad.jsx';
 import Modal from '../components/Modal.jsx';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -329,13 +329,19 @@ function CrearReservaModal({ open, onClose, onCreated }) {
     [libres, personas],
   );
   const sumMaxLibres = useMemo(() => libres.reduce((s, m) => s + m.max_personas, 0), [libres]);
-  const minMin = useMemo(
-    () => (libres.length ? Math.min(...libres.map((m) => m.min_personas)) : 0),
-    [libres],
-  );
   const maxMax = useMemo(
     () => (libres.length ? Math.max(...libres.map((m) => m.max_personas)) : 0),
     [libres],
+  );
+  const mesasGrandesOpciones = useMemo(
+    () => mesasGrandesParaPersonas(libres, personas),
+    [libres, personas],
+  );
+  const minMinMesaGrande = useMemo(
+    () => (mesasGrandesOpciones.length
+      ? Math.min(...mesasGrandesOpciones.map((m) => m.min_personas))
+      : 0),
+    [mesasGrandesOpciones],
   );
   /** Grupo mayor al máximo de una sola mesa libre: juntar ≥2 mesas si la suma de máximos alcanza. */
   const ofrecerJunte =
@@ -346,15 +352,13 @@ function CrearReservaModal({ open, onClose, onCreated }) {
     !canSingle &&
     personas > maxMax &&
     sumMaxLibres >= personas;
-  /** Grupo menor al mínimo de las mesas libres: elegir una mesa con cupo max ≥ personas (sin exigir mínimo). */
+  /** Hay al menos una mesa libre con cupo max ≥ personas y mínimo > personas (no exige que todas las mesas sean grandes). */
   const seleccionarMesaGrande =
     esAdmin &&
     canFetchMesas &&
     mesasLibres.isSuccess &&
-    libres.length >= 1 &&
     !canSingle &&
-    personas < minMin &&
-    libres.some((m) => personas <= m.max_personas);
+    mesasGrandesOpciones.length >= 1;
 
   const selModels = useMemo(
     () => libres.filter((m) => junteSel.includes(m.numero_mesa)),
@@ -481,8 +485,9 @@ function CrearReservaModal({ open, onClose, onCreated }) {
         {seleccionarMesaGrande && (
           <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
             <p className="mb-2">
-              Las mesas libres en este horario tienen un mínimo de {minMin} personas; con {personas} podés reservar
-              en una mesa más grande (se respeta el máximo de cada mesa).
+              {mesasGrandesOpciones.length === 1
+                ? `La mesa disponible tiene un mínimo de ${minMinMesaGrande} personas; con ${personas} podés reservar en esa mesa más grande (se respeta el máximo de cada mesa).`
+                : `Hay mesas libres con mínimo desde ${minMinMesaGrande} personas; con ${personas} podés elegir una mesa más grande (se respeta el máximo de cada mesa).`}
             </p>
             {!mesaGrandePasoActivo ? (
               <Button
@@ -500,9 +505,7 @@ function CrearReservaModal({ open, onClose, onCreated }) {
               <div className="space-y-2">
                 <p className="text-xs font-medium">Elegí una mesa (cupo máximo ≥ {personas} pers.)</p>
                 <ul className="max-h-40 space-y-1 overflow-y-auto">
-                  {libres
-                    .filter((m) => personas <= m.max_personas)
-                    .map((m) => (
+                  {mesasGrandesOpciones.map((m) => (
                       <li key={m.numero_mesa}>
                         <label className="flex cursor-pointer items-center gap-2 text-xs">
                           <input

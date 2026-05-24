@@ -13,3 +13,8 @@ export function horariosTienenTipo(horarios, tipo) {
   return (horarios || []).some((h) => h.tipo === tipo);
 }
 
+/** Mesas libres donde el grupo cabe en el máximo pero está por debajo del mínimo (mesa más grande). */
+export function mesasGrandesParaPersonas(libres, personas) {
+  return (libres || []).filter((m) => personas <= m.max_personas && personas < m.min_personas);
+}
+
