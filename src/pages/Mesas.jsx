@@ -12,6 +12,8 @@ const EMPTY_MESA = {
   horario_manana: '',
   horario_mediodia: '',
   horario_tarde: '',
+  sector_id: '',
+  permite_junte: true,
   activa: true,
 };
 
@@ -71,10 +73,17 @@ export default function Mesas() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(null);
   const [bulkTurnosOpen, setBulkTurnosOpen] = useState(false);
+  const [editingSector, setEditingSector] = useState(null);
+  const [filtroSector, setFiltroSector] = useState('');
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['mesas'],
     queryFn: async () => (await api.get('/mesas')).data,
+  });
+
+  const sectoresQuery = useQuery({
+    queryKey: ['sectores'],
+    queryFn: async () => (await api.get('/sectores')).data,
   });
 
   const desactivarMut = useMutation({
@@ -82,32 +91,77 @@ export default function Mesas() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['mesas'] }),
   });
 
-  if (isLoading) return <p className="text-sm text-slate-500">Cargando mesas…</p>;
-  if (isError)  return <p className="text-sm text-rose-600">Error: {apiError(error)}</p>;
+  if (isLoading || sectoresQuery.isLoading) {
+    return <p className="text-sm text-slate-500">Cargando mesas…</p>;
+  }
+  if (isError) return <p className="text-sm text-rose-600">Error: {apiError(error)}</p>;
+  if (sectoresQuery.isError) {
+    return <p className="text-sm text-rose-600">Error: {apiError(sectoresQuery.error)}</p>;
+  }
 
   const mesas = data?.data || [];
+  const sectores = sectoresQuery.data?.data || [];
+  const sectoresActivos = sectores.filter((s) => s.activo);
+  const mesasFiltradas = filtroSector
+    ? mesas.filter((m) => String(m.sector_id) === String(filtroSector))
+    : mesas;
+
+  const abrirNuevaMesa = () => {
+    const defaultSector = sectoresActivos[0]?.id ?? '';
+    setEditing({ ...EMPTY_MESA, sector_id: defaultSector });
+  };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <SectoresSection
+        sectores={sectores}
+        onEdit={(s) => setEditingSector(s)}
+        onCreate={() => setEditingSector({ nombre: '' })}
+        onDeleted={() => {
+          qc.invalidateQueries({ queryKey: ['sectores'] });
+          qc.invalidateQueries({ queryKey: ['mesas'] });
+        }}
+      />
+
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-600">{mesas.length} mesas configuradas.</p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <p className="text-sm text-slate-600">{mesas.length} mesas configuradas.</p>
+          {sectores.length > 0 && (
+            <Select
+              value={filtroSector}
+              onChange={(e) => setFiltroSector(e.target.value)}
+              className="max-w-xs text-sm"
+            >
+              <option value="">Todos los sectores</option>
+              {sectores.map((s) => (
+                <option key={s.id} value={String(s.id)}>{s.nombre}</option>
+              ))}
+            </Select>
+          )}
+        </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button variant="secondary" onClick={() => setBulkTurnosOpen(true)} disabled={mesas.length === 0}>
             <Icon name="clock" className="h-4 w-4" /> Aplicar turnos a todas
           </Button>
-          <Button onClick={() => setEditing({ ...EMPTY_MESA })}>
+          <Button onClick={abrirNuevaMesa} disabled={sectoresActivos.length === 0}>
             <Icon name="plus" className="h-4 w-4" /> Nueva mesa
           </Button>
         </div>
       </div>
 
-      {mesas.length === 0 ? (
+      {sectoresActivos.length === 0 && (
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          Creá al menos un sector o piso antes de cargar mesas.
+        </p>
+      )}
+
+      {mesasFiltradas.length === 0 ? (
         <p className="rounded-2xl bg-white p-8 text-center text-sm text-slate-500 ring-1 ring-slate-200">
-          Todavía no cargaste mesas.
+          {mesas.length === 0 ? 'Todavía no cargaste mesas.' : 'No hay mesas en este sector.'}
         </p>
       ) : (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {mesas.map((m) => (
+          {mesasFiltradas.map((m) => (
             <li
               key={m.id}
               className={`rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 ${m.activa ? '' : 'opacity-60'}`}
@@ -116,10 +170,14 @@ export default function Mesas() {
                 <div className="min-w-0">
                   <p className="text-sm text-slate-500">Mesa</p>
                   <p className="truncate text-lg font-semibold text-slate-900">{m.numero_mesa}</p>
+                  <p className="mt-1 text-xs font-medium text-slate-600">{m.sector_nombre || '—'}</p>
                 </div>
                 <div className="text-right text-sm">
                   <p className="font-medium text-slate-900">{m.min_personas}–{m.max_personas} pers.</p>
                   <p className="text-xs text-slate-500">{m.activa ? 'Activa' : 'Inactiva'}</p>
+                  {m.permite_junte === false && (
+                    <p className="text-xs text-amber-700">Sin junte</p>
+                  )}
                 </div>
               </div>
               <ul className="mt-3 space-y-1 text-xs text-slate-600">
@@ -149,8 +207,15 @@ export default function Mesas() {
 
       <MesaModal
         mesa={editing}
+        sectores={sectoresActivos}
         onClose={() => setEditing(null)}
         onSaved={() => qc.invalidateQueries({ queryKey: ['mesas'] })}
+      />
+
+      <SectorModal
+        sector={editingSector}
+        onClose={() => setEditingSector(null)}
+        onSaved={() => qc.invalidateQueries({ queryKey: ['sectores'] })}
       />
 
       <BulkTurnosModal
@@ -160,6 +225,125 @@ export default function Mesas() {
         onApplied={() => qc.invalidateQueries({ queryKey: ['mesas'] })}
       />
     </div>
+  );
+}
+
+function SectoresSection({ sectores, onEdit, onCreate, onDeleted }) {
+  const eliminarMut = useMutation({
+    mutationFn: (id) => api.delete(`/sectores/${id}`),
+    onSuccess: () => onDeleted?.(),
+    onError: (err) => window.alert(apiError(err, 'No se pudo eliminar el sector')),
+  });
+
+  return (
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Sectores / Pisos</h2>
+          <p className="text-xs text-slate-500">Cada mesa pertenece a un sector. El junte solo es posible entre mesas del mismo sector.</p>
+        </div>
+        <Button onClick={onCreate}>
+          <Icon name="plus" className="h-4 w-4" /> Nuevo sector
+        </Button>
+      </div>
+      {sectores.length === 0 ? (
+        <p className="text-sm text-slate-500">Todavía no hay sectores configurados.</p>
+      ) : (
+        <ul className="flex flex-wrap gap-2">
+          {sectores.map((s) => (
+            <li
+              key={s.id}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${s.activo ? 'border-slate-200 bg-slate-50' : 'border-slate-100 bg-slate-50 opacity-60'}`}
+            >
+              <span className="font-medium text-slate-900">{s.nombre}</span>
+              {!s.activo && <span className="text-xs text-slate-500">(inactivo)</span>}
+              <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => onEdit({ ...s })}>
+                Editar
+              </Button>
+              <Button
+                variant="danger"
+                className="!px-2 !py-1 text-xs"
+                onClick={() => {
+                  if (window.confirm(`¿Eliminar sector "${s.nombre}"?`)) eliminarMut.mutate(s.id);
+                }}
+              >
+                Eliminar
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function SectorModal({ sector, onClose, onSaved }) {
+  const [nombre, setNombre] = useState('');
+  const [activo, setActivo] = useState(true);
+  const [error, setError] = useState(null);
+  const isNew = !sector?.id;
+
+  useEffect(() => {
+    if (sector) {
+      setNombre(sector.nombre || '');
+      setActivo(sector.activo !== false);
+      setError(null);
+    }
+  }, [sector]);
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const n = String(nombre || '').trim();
+      if (!n) throw new Error('El nombre del sector es requerido.');
+      if (isNew) {
+        return (await api.post('/sectores', { nombre: n, activo })).data;
+      }
+      return (await api.patch(`/sectores/${sector.id}`, { nombre: n, activo })).data;
+    },
+    onSuccess: () => { onSaved?.(); onClose(); },
+    onError: (err) => setError(apiError(err, 'No se pudo guardar')),
+  });
+
+  if (!sector) return null;
+
+  return (
+    <Modal
+      open={Boolean(sector)}
+      onClose={onClose}
+      title={isNew ? 'Nuevo sector' : `Editar sector`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={mut.isPending}>Cancelar</Button>
+          <Button onClick={() => { setError(null); mut.mutate(); }} disabled={mut.isPending}>
+            {mut.isPending ? 'Guardando…' : (isNew ? 'Crear' : 'Guardar')}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="s-nombre">Nombre</Label>
+          <Input
+            id="s-nombre"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej: Piso 1, Patio, Salón"
+          />
+        </div>
+        {!isNew && (
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={Boolean(activo)}
+              onChange={(e) => setActivo(e.target.checked)}
+              className="h-5 w-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+            />
+            Sector activo
+          </label>
+        )}
+        <ErrorText>{error}</ErrorText>
+      </div>
+    </Modal>
   );
 }
 
@@ -173,7 +357,6 @@ function BulkTurnosModal({ open, mesas, onClose, onApplied }) {
 
   useEffect(() => {
     if (!open) return;
-    // Por defecto: tomar el turno de la primera mesa como base (si existe).
     const base = mesas?.[0] || null;
     setTurnos({
       manana: parseTurno(base?.horario_manana),
@@ -265,7 +448,7 @@ function BulkTurnosModal({ open, mesas, onClose, onApplied }) {
   );
 }
 
-function MesaModal({ mesa, onClose, onSaved }) {
+function MesaModal({ mesa, sectores, onClose, onSaved }) {
   const [form, setForm] = useState(mesa || {});
   const [turnos, setTurnos] = useState({
     manana:   { inicio: '', fin: '' },
@@ -277,7 +460,11 @@ function MesaModal({ mesa, onClose, onSaved }) {
 
   useEffect(() => {
     if (mesa) {
-      setForm({ ...mesa });
+      setForm({
+        ...mesa,
+        sector_id: mesa.sector_id ?? sectores[0]?.id ?? '',
+        permite_junte: mesa.permite_junte !== false,
+      });
       setTurnos({
         manana:   parseTurno(mesa.horario_manana),
         mediodia: parseTurno(mesa.horario_mediodia),
@@ -285,7 +472,7 @@ function MesaModal({ mesa, onClose, onSaved }) {
       });
       setError(null);
     }
-  }, [mesa]);
+  }, [mesa, sectores]);
 
   const setTurno = (key, parte, value) => {
     setTurnos((t) => ({ ...t, [key]: { ...t[key], [parte]: value } }));
@@ -296,8 +483,10 @@ function MesaModal({ mesa, onClose, onSaved }) {
       const numeroMesa = String(form.numero_mesa ?? '').trim();
       const minPersonas = Number.parseInt(String(form.min_personas ?? ''), 10);
       const maxPersonas = Number.parseInt(String(form.max_personas ?? ''), 10);
+      const sectorId = Number.parseInt(String(form.sector_id ?? ''), 10);
 
       if (!numeroMesa) throw new Error('El número o nombre de la mesa es requerido.');
+      if (!Number.isInteger(sectorId) || sectorId <= 0) throw new Error('Seleccioná un sector.');
       if (!Number.isInteger(minPersonas)) throw new Error('Mín. personas debe ser un número entero.');
       if (!Number.isInteger(maxPersonas)) throw new Error('Máx. personas debe ser un número entero.');
       if (minPersonas < 0 || minPersonas > 50) throw new Error('Mín. personas debe estar entre 0 y 50.');
@@ -318,6 +507,8 @@ function MesaModal({ mesa, onClose, onSaved }) {
         horario_manana: hmN,
         horario_mediodia: hmdN,
         horario_tarde: htN,
+        sector_id: sectorId,
+        permite_junte: Boolean(form.permite_junte),
         activa: Boolean(form.activa),
       };
       if (isNew) {
@@ -349,6 +540,19 @@ function MesaModal({ mesa, onClose, onSaved }) {
         <div>
           <Label htmlFor="m-numero">Número o nombre</Label>
           <Input id="m-numero" value={form.numero_mesa || ''} onChange={(e) => setForm({ ...form, numero_mesa: e.target.value })} />
+        </div>
+        <div>
+          <Label htmlFor="m-sector">Sector / Piso</Label>
+          <Select
+            id="m-sector"
+            value={form.sector_id ?? ''}
+            onChange={(e) => setForm({ ...form, sector_id: e.target.value })}
+          >
+            <option value="">— Seleccionar —</option>
+            {sectores.map((s) => (
+              <option key={s.id} value={String(s.id)}>{s.nombre}</option>
+            ))}
+          </Select>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -387,6 +591,15 @@ function MesaModal({ mesa, onClose, onSaved }) {
             onChange={(parte, v) => setTurno('tarde', parte, v)}
           />
         </div>
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={Boolean(form.permite_junte)}
+            onChange={(e) => setForm({ ...form, permite_junte: e.target.checked })}
+            className="h-5 w-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+          />
+          Permite junte (se puede juntar con otras mesas del mismo sector)
+        </label>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"

@@ -5,8 +5,8 @@ import { api, apiError } from '../lib/api.js';
 import EstadoBadge from '../components/EstadoBadge.jsx';
 import { Input, Select, Button } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
-import { fmtFechaCorta, fmtHora } from '../lib/format.js';
-import { labelHorarioOption, mesasGrandesParaPersonas } from '../lib/horarioDisponibilidad.jsx';
+import { fmtFechaCorta, fmtHora, fmtMesasReserva } from '../lib/format.js';
+import { labelHorarioOption, mesasGrandesParaPersonas, analizarJuntePorSector, mesasElegiblesJunte, junteMismoSector } from '../lib/horarioDisponibilidad.jsx';
 import Modal from '../components/Modal.jsx';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -197,9 +197,10 @@ export default function Reservas() {
                     <span className="font-medium text-slate-900">{fmtFechaCorta(r.dia)} · {fmtHora(r.horario_hora)}</span>
                     <span className="text-slate-600">{r.personas} pers.</span>
                   </div>
-                  {Array.isArray(r.mesas) && r.mesas.length > 1 && (
-                    <p className="mt-1 text-xs text-slate-500">Mesas: {r.mesas.join(' + ')}</p>
-                  )}
+                  <p className="mt-1 text-xs text-slate-500">
+                    Mesas: {fmtMesasReserva(r)}
+                    {r.sector_nombre ? ` · Sector: ${r.sector_nombre}` : ''}
+                  </p>
                 </Link>
               </li>
             ))}
@@ -216,6 +217,7 @@ export default function Reservas() {
                     <th className="px-4 py-3 text-left">Hora</th>
                     <th className="px-4 py-3 text-left">Personas</th>
                     <th className="px-4 py-3 text-left">Mesas</th>
+                    <th className="px-4 py-3 text-left">Sector</th>
                     <th className="px-4 py-3 text-left">Estado</th>
                     <th className="px-4 py-3"></th>
                   </tr>
@@ -228,9 +230,8 @@ export default function Reservas() {
                       <td className="px-4 py-3 text-slate-700">{fmtFechaCorta(r.dia)}</td>
                       <td className="px-4 py-3 text-slate-700">{fmtHora(r.horario_hora)}</td>
                       <td className="px-4 py-3 text-slate-700">{r.personas}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {Array.isArray(r.mesas) && r.mesas.length ? r.mesas.join(' + ') : (r.numero_mesa || '—')}
-                      </td>
+                      <td className="px-4 py-3 text-slate-600">{fmtMesasReserva(r)}</td>
+                      <td className="px-4 py-3 text-slate-600">{r.sector_nombre || '—'}</td>
                       <td className="px-4 py-3"><EstadoBadge estado={r.estado} /></td>
                       <td className="px-4 py-3 text-right">
                         <Link to={`/reservas/${r.id}`} className="text-sm font-medium text-slate-700 hover:underline">
@@ -328,11 +329,12 @@ function CrearReservaModal({ open, onClose, onCreated }) {
     () => libres.some((m) => personas >= m.min_personas && personas <= m.max_personas),
     [libres, personas],
   );
-  const sumMaxLibres = useMemo(() => libres.reduce((s, m) => s + m.max_personas, 0), [libres]);
   const maxMax = useMemo(
     () => (libres.length ? Math.max(...libres.map((m) => m.max_personas)) : 0),
     [libres],
   );
+  const junteAnalisis = useMemo(() => analizarJuntePorSector(libres, personas), [libres, personas]);
+  const libresJunte = useMemo(() => mesasElegiblesJunte(libres), [libres]);
   const mesasGrandesOpciones = useMemo(
     () => mesasGrandesParaPersonas(libres, personas),
     [libres, personas],
@@ -343,15 +345,13 @@ function CrearReservaModal({ open, onClose, onCreated }) {
       : 0),
     [mesasGrandesOpciones],
   );
-  /** Grupo mayor al máximo de una sola mesa libre: juntar ≥2 mesas si la suma de máximos alcanza. */
+  /** Grupo mayor al máximo de una sola mesa libre: juntar ≥2 mesas del mismo sector si la suma alcanza. */
   const ofrecerJunte =
     esAdmin &&
     canFetchMesas &&
     mesasLibres.isSuccess &&
-    libres.length >= 2 &&
     !canSingle &&
-    personas > maxMax &&
-    sumMaxLibres >= personas;
+    junteAnalisis.ofrecerJunte;
   /** Hay al menos una mesa libre con cupo max ≥ personas y mínimo > personas (no exige que todas las mesas sean grandes). */
   const seleccionarMesaGrande =
     esAdmin &&
@@ -366,7 +366,12 @@ function CrearReservaModal({ open, onClose, onCreated }) {
   );
   const sumMinSel = selModels.reduce((s, m) => s + m.min_personas, 0);
   const sumMaxSel = selModels.reduce((s, m) => s + m.max_personas, 0);
-  const junteValido = junteSel.length >= 2 && personas >= sumMinSel && personas <= sumMaxSel;
+  const sectorJunte = selModels.length > 0 ? selModels[0].sector_id : null;
+  const sectorJunteNombre = selModels.length > 0 ? selModels[0].sector_nombre : '';
+  const junteValido = junteSel.length >= 2
+    && personas >= sumMinSel
+    && personas <= sumMaxSel
+    && junteMismoSector(selModels);
 
   const resetJunte = () => {
     setJunteSel([]);
@@ -546,13 +551,22 @@ function CrearReservaModal({ open, onClose, onCreated }) {
               </Button>
             ) : (
               <div className="space-y-2">
-                <p className="text-xs font-medium">Seleccioná las mesas libres (mínimo 2) hasta cubrir {personas} personas (entre suma de mínimos y máximos).</p>
+                <p className="text-xs font-medium">
+                  Seleccioná mesas del mismo sector (mínimo 2) hasta cubrir {personas} personas.
+                  {sectorJunteNombre ? ` Sector: ${sectorJunteNombre}.` : ''}
+                </p>
                 <ul className="max-h-40 space-y-1 overflow-y-auto">
-                  {libres.map((m) => (
+                  {libresJunte.map((m) => {
+                    const bloqueadoSector = sectorJunte != null && m.sector_id !== sectorJunte;
+                    return (
                     <li key={m.numero_mesa}>
-                      <label className="flex cursor-pointer items-center gap-2 text-xs">
+                      <label
+                        className={`flex items-center gap-2 text-xs ${bloqueadoSector ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                        title={bloqueadoSector ? 'Solo se pueden juntar mesas del mismo sector' : undefined}
+                      >
                         <input
                           type="checkbox"
+                          disabled={bloqueadoSector}
                           checked={junteSel.includes(m.numero_mesa)}
                           onChange={() => {
                             setJunteSel((prev) => (
@@ -564,10 +578,12 @@ function CrearReservaModal({ open, onClose, onCreated }) {
                         />
                         <span>
                           Mesa <strong>{m.numero_mesa}</strong> ({m.min_personas}–{m.max_personas} pers.)
+                          {m.sector_nombre ? ` · ${m.sector_nombre}` : ''}
                         </span>
                       </label>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
                 <p className="text-xs text-slate-700">
                   Seleccionadas: {junteSel.length} · cupo {sumMinSel}–{sumMaxSel} pers.

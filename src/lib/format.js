@@ -79,3 +79,11 @@ export function labelEstado(estado) {
     default:           return estado || '—';
   }
 }
+
+/** Texto de mesa(s) asignadas en una reserva (individual o junte). */
+export function fmtMesasReserva(reserva) {
+  if (Array.isArray(reserva?.mesas) && reserva.mesas.length) {
+    return reserva.mesas.join(' + ');
+  }
+  return reserva?.numero_mesa || '—';
+}

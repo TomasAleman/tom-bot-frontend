@@ -5,8 +5,8 @@ import { api, apiError } from '../lib/api.js';
 import EstadoBadge from '../components/EstadoBadge.jsx';
 import Modal from '../components/Modal.jsx';
 import { Button, Input, Label, Select, ErrorText } from '../components/Field.jsx';
-import { fmtFecha, fmtHora, fmtTimestamp } from '../lib/format.js';
-import { labelHorarioOption, mesasGrandesParaPersonas } from '../lib/horarioDisponibilidad.jsx';
+import { fmtFecha, fmtHora, fmtTimestamp, fmtMesasReserva } from '../lib/format.js';
+import { labelHorarioOption, mesasGrandesParaPersonas, analizarJuntePorSector, mesasElegiblesJunte, junteMismoSector } from '../lib/horarioDisponibilidad.jsx';
 import { Icon } from '../components/Icon.jsx';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -79,14 +79,8 @@ export default function ReservaDetalle() {
           <Row label="Horario"  value={fmtHora(reserva.horario_hora)} />
           <Row label="Turno"    value={reserva.turno || '—'} />
           <Row label="Personas" value={reserva.personas} />
-          <Row
-            label="Mesas"
-            value={
-              Array.isArray(reserva.mesas) && reserva.mesas.length
-                ? reserva.mesas.join(' + ')
-                : (reserva.numero_mesa || '—')
-            }
-          />
+          <Row label="Mesas" value={fmtMesasReserva(reserva)} />
+          <Row label="Sector" value={reserva.sector_nombre || '—'} />
           <Row label="Creada"   value={fmtTimestamp(reserva.created_at)} />
           <Row label="Actualizada" value={fmtTimestamp(reserva.updated_at)} />
         </dl>
@@ -269,11 +263,12 @@ function EditModal({ open, onClose, reserva, onSaved }) {
     () => libres.some((m) => personas >= m.min_personas && personas <= m.max_personas),
     [libres, personas],
   );
-  const sumMaxLibres = useMemo(() => libres.reduce((s, m) => s + m.max_personas, 0), [libres]);
   const maxMax = useMemo(
     () => (libres.length ? Math.max(...libres.map((m) => m.max_personas)) : 0),
     [libres],
   );
+  const junteAnalisis = useMemo(() => analizarJuntePorSector(libres, personas), [libres, personas]);
+  const libresJunte = useMemo(() => mesasElegiblesJunte(libres), [libres]);
   const mesasGrandesOpciones = useMemo(
     () => mesasGrandesParaPersonas(libres, personas),
     [libres, personas],
@@ -288,10 +283,8 @@ function EditModal({ open, onClose, reserva, onSaved }) {
     esAdmin &&
     canFetchMesas &&
     mesasLibres.isSuccess &&
-    libres.length >= 2 &&
     !canSingle &&
-    personas > maxMax &&
-    sumMaxLibres >= personas;
+    junteAnalisis.ofrecerJunte;
   const seleccionarMesaGrande =
     esAdmin &&
     canFetchMesas &&
@@ -305,7 +298,12 @@ function EditModal({ open, onClose, reserva, onSaved }) {
   );
   const sumMinSel = selModels.reduce((s, m) => s + m.min_personas, 0);
   const sumMaxSel = selModels.reduce((s, m) => s + m.max_personas, 0);
-  const junteValido = junteSel.length >= 2 && personas >= sumMinSel && personas <= sumMaxSel;
+  const sectorJunte = selModels.length > 0 ? selModels[0].sector_id : null;
+  const sectorJunteNombre = selModels.length > 0 ? selModels[0].sector_nombre : '';
+  const junteValido = junteSel.length >= 2
+    && personas >= sumMinSel
+    && personas <= sumMaxSel
+    && junteMismoSector(selModels);
 
   const resetJunte = () => {
     setJunteSel([]);
@@ -581,13 +579,22 @@ function EditModal({ open, onClose, reserva, onSaved }) {
               </Button>
             ) : (
               <div className="space-y-2">
-                <p className="text-xs font-medium">Seleccioná las mesas libres (mínimo 2) hasta cubrir {personas} personas (entre suma de mínimos y máximos).</p>
+                <p className="text-xs font-medium">
+                  Seleccioná mesas del mismo sector (mínimo 2) hasta cubrir {personas} personas.
+                  {sectorJunteNombre ? ` Sector: ${sectorJunteNombre}.` : ''}
+                </p>
                 <ul className="max-h-40 space-y-1 overflow-y-auto">
-                  {libres.map((m) => (
+                  {libresJunte.map((m) => {
+                    const bloqueadoSector = sectorJunte != null && m.sector_id !== sectorJunte;
+                    return (
                     <li key={m.numero_mesa}>
-                      <label className="flex cursor-pointer items-center gap-2 text-xs">
+                      <label
+                        className={`flex items-center gap-2 text-xs ${bloqueadoSector ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                        title={bloqueadoSector ? 'Solo se pueden juntar mesas del mismo sector' : undefined}
+                      >
                         <input
                           type="checkbox"
+                          disabled={bloqueadoSector}
                           checked={junteSel.includes(m.numero_mesa)}
                           onChange={() => {
                             setJunteSel((prev) => (
@@ -599,10 +606,12 @@ function EditModal({ open, onClose, reserva, onSaved }) {
                         />
                         <span>
                           Mesa <strong>{m.numero_mesa}</strong> ({m.min_personas}–{m.max_personas} pers.)
+                          {m.sector_nombre ? ` · ${m.sector_nombre}` : ''}
                         </span>
                       </label>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
                 <p className="text-xs text-slate-700">
                   Seleccionadas: {junteSel.length} · cupo {sumMinSel}–{sumMaxSel} pers.
