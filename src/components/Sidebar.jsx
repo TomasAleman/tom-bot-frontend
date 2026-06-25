@@ -13,6 +13,7 @@ const NAV_ITEMS = [
 ];
 
 const SUPERADMIN_ITEMS = [
+  { to: '/superadmin/restaurantes', label: 'Restaurantes', icon: 'tables' },
   { to: '/superadmin/usuarios', label: 'Usuarios', icon: 'chat' },
 ];
 

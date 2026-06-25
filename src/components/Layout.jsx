@@ -57,6 +57,11 @@ export default function Layout() {
 
       <div className="flex h-full min-w-0 flex-1 flex-col">
         <Topbar onOpenMenu={() => setMenuOpen(true)} title={titulo} />
+        {usuario?.restaurante && usuario.restaurante.activo === false && (
+          <div className="bg-amber-500 px-4 py-2 text-center text-sm font-medium text-white">
+            ⚠️ El bot de WhatsApp está desactivado para este restaurante.
+          </div>
+        )}
         <main className="flex-1 overflow-y-auto safe-bottom">
           <div className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-6">
             <Outlet />

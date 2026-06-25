@@ -74,7 +74,7 @@ export default function App() {
         <Route path="configuracion" element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Configuracion /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
         <Route path="sesiones"      element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Sesiones /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
 
-        <Route path="superadmin/restaurantes" element={<Navigate to="/superadmin/usuarios" replace />} />
+        <Route path="superadmin/restaurantes" element={<RequireSuperadmin><SuperadminRestaurantes /></RequireSuperadmin>} />
         <Route path="superadmin/usuarios" element={<RequireSuperadmin><SuperadminUsuarios /></RequireSuperadmin>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
