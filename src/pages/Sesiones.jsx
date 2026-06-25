@@ -1,17 +1,59 @@
 import { useMemo, useState } from 'react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api, apiError } from '../lib/api.js';
+import { useAuth } from '../lib/auth.jsx';
 import { Input, Select, Button } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
+import SesionTimelineModal from '../components/SesionTimelineModal.jsx';
 import { fmtTimestamp } from '../lib/format.js';
 
 const PAGE_SIZE = 30;
 
+function esAdminRestaurante(rol) {
+  return rol === 'admin_restaurante' || rol === 'restaurante';
+}
+
+function ModoHumanoToggle({ sesion }) {
+  const qc = useQueryClient();
+  const mut = useMutation({
+    mutationFn: (activo) => api.patch(`/sesiones/${encodeURIComponent(sesion.telefono)}/modo-humano`, { activo }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sesiones'] }),
+  });
+  const activo = sesion.modo_humano;
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={activo}
+      disabled={mut.isPending}
+      onClick={(e) => { e.stopPropagation(); mut.mutate(!activo); }}
+      className="flex items-center gap-2 disabled:opacity-50"
+    >
+      <span className={`text-xs font-medium ${activo ? 'text-violet-800' : 'text-slate-500'}`}>Modo persona</span>
+      <span
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+          activo ? 'bg-violet-600' : 'bg-slate-300'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+            activo ? 'translate-x-4' : 'translate-x-0.5'
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
 export default function Sesiones() {
+  const { usuario } = useAuth();
+  const puedeModoHumano = esAdminRestaurante(usuario?.rol);
+
   const [q, setQ] = useState('');
   const [bloqueadas, setBloqueadas] = useState('');
   const [page, setPage] = useState(1);
-  const [openTel, setOpenTel] = useState(null);
+  const [sesionAbierta, setSesionAbierta] = useState(null);
 
   const queryParams = (() => {
     const p = new URLSearchParams();
@@ -26,6 +68,7 @@ export default function Sesiones() {
     queryKey: ['sesiones', queryParams],
     queryFn: async () => (await api.get(`/sesiones?${queryParams}`)).data,
     placeholderData: keepPreviousData,
+    refetchInterval: 5000,
   });
 
   const items = useMemo(
@@ -65,31 +108,33 @@ export default function Sesiones() {
         <>
           <ul className="space-y-2">
             {items.map((s) => (
-              <li key={s.telefono}>
-                <button
-                  type="button"
-                  onClick={() => setOpenTel(openTel === s.telefono ? null : s.telefono)}
-                  className="block w-full rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-900">{s.telefono}</p>
-                      <p className="text-xs text-slate-500">
-                        Último msg: {fmtTimestamp(s.ultimo_mensaje_at)} · {s.contador_mensajes} mensajes
-                      </p>
-                    </div>
+              <li key={s.telefono} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50">
+                <div className="flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSesionAbierta(s)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <p className="truncate text-sm font-semibold text-slate-900">{s.telefono}</p>
+                    <p className="text-xs text-slate-500">
+                      Último msg: {fmtTimestamp(s.ultimo_mensaje_at)} · {s.contador_mensajes} mensajes
+                    </p>
+                  </button>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
                     {s.bloqueo_hasta && new Date(s.bloqueo_hasta) > new Date() ? (
                       <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-800 ring-1 ring-rose-600/20">
                         Bloqueada
                       </span>
                     ) : null}
+                    {puedeModoHumano ? (
+                      <ModoHumanoToggle sesion={s} />
+                    ) : s.modo_humano ? (
+                      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 ring-1 ring-violet-600/20">
+                        🧑 Modo persona
+                      </span>
+                    ) : null}
                   </div>
-                  {openTel === s.telefono && (
-                    <pre className="mt-3 max-h-60 overflow-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-700">
-{JSON.stringify(s.contexto_reserva, null, 2)}
-                    </pre>
-                  )}
-                </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -105,6 +150,8 @@ export default function Sesiones() {
           </nav>
         </>
       )}
+
+      <SesionTimelineModal sesion={sesionAbierta} onClose={() => setSesionAbierta(null)} />
     </div>
   );
 }
