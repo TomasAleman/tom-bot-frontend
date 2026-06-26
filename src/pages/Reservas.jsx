@@ -149,7 +149,9 @@ export default function Reservas() {
               <label className="block text-xs font-medium text-slate-600">Estado</label>
               <Select value={filtros.estado} onChange={(e) => aplicar({ estado: e.target.value })}>
                 <option value="">Todos</option>
+                <option value="Reservado">Reservado</option>
                 <option value="Confirmada">Confirmada</option>
+                <option value="Asistencia">Asistencia</option>
                 <option value="Cancelada">Cancelada</option>
                 <option value="NoShow">No vino</option>
               </Select>

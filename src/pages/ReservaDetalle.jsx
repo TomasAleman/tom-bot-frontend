@@ -40,8 +40,8 @@ export default function ReservaDetalle() {
     onSuccess: () => { invalidar(); setConfirmOpen(null); },
   });
 
-  const noShowMut = useMutation({
-    mutationFn: () => api.post(`/reservas/${id}/no-show`),
+  const marcarAsistenciaMut = useMutation({
+    mutationFn: () => api.post(`/reservas/${id}/asistencia`),
     onSuccess: () => { invalidar(); setConfirmOpen(null); },
   });
 
@@ -57,9 +57,9 @@ export default function ReservaDetalle() {
   if (!reserva) return null;
 
   const isRecepcionista = usuario?.rol === 'recepcionista' || usuario?.rol === 'staff';
-  const reservaConfirmada = reserva.estado === 'Confirmada';
-  const puedeEditarCancelar = reservaConfirmada && !isRecepcionista;
-  const puedeMarcarNoVino = reservaConfirmada;
+  const esEditable = ['Reservado', 'Confirmada'].includes(reserva.estado);
+  const puedeEditarCancelar = esEditable && !isRecepcionista;
+  const puedeMarcarAsistencia = esEditable;
 
   return (
     <div className="space-y-4">
@@ -99,9 +99,9 @@ export default function ReservaDetalle() {
             <Button
               variant="warning"
               disabled={!puedeEditarCancelar}
-              onClick={() => setConfirmOpen('noshow')}
+              onClick={() => setConfirmOpen('asistencia')}
             >
-              <Icon name="alert" className="h-4 w-4" /> Marcar como no vino
+              <Icon name="check" className="h-4 w-4" /> Marcar asistencia
             </Button>
             <Button
               variant="danger"
@@ -115,19 +115,19 @@ export default function ReservaDetalle() {
         {isRecepcionista && (
           <Button
             variant="warning"
-            disabled={!puedeMarcarNoVino}
-            onClick={() => setConfirmOpen('noshow')}
+            disabled={!puedeMarcarAsistencia}
+            onClick={() => setConfirmOpen('asistencia')}
           >
-            <Icon name="alert" className="h-4 w-4" /> Marcar como no vino
+            <Icon name="check" className="h-4 w-4" /> Marcar asistencia
           </Button>
         )}
       </div>
 
-      {(isRecepcionista ? !reservaConfirmada : !puedeEditarCancelar) && (
+      {(isRecepcionista ? !puedeMarcarAsistencia : !puedeEditarCancelar) && (
         <p className="text-xs text-slate-500">
           {isRecepcionista
-            ? 'Solo podés marcar si no vino cuando la reserva está confirmada.'
-            : 'Esta reserva ya no está Confirmada, no se puede editar ni cancelar.'}
+            ? 'Solo podés marcar asistencia cuando la reserva está Reservada o Confirmada.'
+            : 'Esta reserva ya no está Reservada/Confirmada, no se puede editar ni cancelar.'}
         </p>
       )}
 
@@ -151,14 +151,14 @@ export default function ReservaDetalle() {
       />
 
       <ConfirmActionModal
-        open={confirmOpen === 'noshow'}
-        title="Marcar como no vino"
-        message="Esto marca que el cliente no vino y libera la mesa. ¿Continuar?"
-        confirmLabel="Sí, marcar"
+        open={confirmOpen === 'asistencia'}
+        title="Marcar asistencia"
+        message="Esto marca que el cliente llegó al local. ¿Continuar?"
+        confirmLabel="Sí, marcar asistencia"
         confirmVariant="warning"
-        loading={noShowMut.isPending}
-        error={noShowMut.error}
-        onConfirm={() => noShowMut.mutate()}
+        loading={marcarAsistenciaMut.isPending}
+        error={marcarAsistenciaMut.error}
+        onConfirm={() => marcarAsistenciaMut.mutate()}
         onClose={() => setConfirmOpen(null)}
       />
     </div>
