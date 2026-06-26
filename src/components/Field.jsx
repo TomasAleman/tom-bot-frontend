@@ -36,6 +36,7 @@ export function Button({ variant = 'primary', className = '', type = 'button', .
     secondary: 'bg-white text-slate-900 ring-1 ring-slate-300 hover:bg-slate-50',
     danger:    'bg-rose-600 text-white hover:bg-rose-700',
     warning:   'bg-amber-500 text-white hover:bg-amber-600',
+    success:   'bg-emerald-600 text-white hover:bg-emerald-700',
     ghost:     'bg-transparent text-slate-700 hover:bg-slate-100',
   }[variant];
   return (

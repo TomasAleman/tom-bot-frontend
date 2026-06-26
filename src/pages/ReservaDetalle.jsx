@@ -97,7 +97,7 @@ export default function ReservaDetalle() {
               <Icon name="edit" className="h-4 w-4" /> Editar
             </Button>
             <Button
-              variant="warning"
+              variant="success"
               disabled={!puedeEditarCancelar}
               onClick={() => setConfirmOpen('asistencia')}
             >
@@ -114,7 +114,7 @@ export default function ReservaDetalle() {
         )}
         {isRecepcionista && (
           <Button
-            variant="warning"
+            variant="success"
             disabled={!puedeMarcarAsistencia}
             onClick={() => setConfirmOpen('asistencia')}
           >
@@ -155,7 +155,7 @@ export default function ReservaDetalle() {
         title="Marcar asistencia"
         message="Esto marca que el cliente llegó al local. ¿Continuar?"
         confirmLabel="Sí, marcar asistencia"
-        confirmVariant="warning"
+        confirmVariant="success"
         loading={marcarAsistenciaMut.isPending}
         error={marcarAsistenciaMut.error}
         onConfirm={() => marcarAsistenciaMut.mutate()}

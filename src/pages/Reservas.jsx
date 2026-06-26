@@ -87,6 +87,7 @@ export default function Reservas() {
     queryKey: ['reservas', queryParams],
     queryFn: async () => (await api.get(`/reservas?${queryParams}`)).data,
     placeholderData: keepPreviousData,
+    refetchInterval: 5000,
   });
 
   const aplicar = (next) => {

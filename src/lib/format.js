@@ -66,7 +66,7 @@ export function clsBadge(estado) {
   switch ((estado || '').toLowerCase()) {
     case 'reservado':  return 'bg-sky-100 text-sky-800 ring-sky-600/20';
     case 'confirmada': return 'bg-emerald-100 text-emerald-800 ring-emerald-600/20';
-    case 'asistencia': return 'bg-indigo-100 text-indigo-800 ring-indigo-600/20';
+    case 'asistencia': return 'bg-emerald-200 text-emerald-900 ring-emerald-700/30';
     case 'cancelada':  return 'bg-rose-100 text-rose-800 ring-rose-600/20';
     case 'noshow':     return 'bg-amber-100 text-amber-800 ring-amber-600/20';
     default:           return 'bg-slate-100 text-slate-700 ring-slate-500/20';
