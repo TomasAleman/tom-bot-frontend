@@ -7,6 +7,7 @@ import { isRecepcionista } from '../lib/roles.js';
 const NAV_ITEMS = [
   { to: '/dashboard',     label: 'Dashboard',  icon: 'dashboard' },
   { to: '/reservas',      label: 'Reservas',   icon: 'list' },
+  { to: '/walkin',        label: 'Walk-in',    icon: 'users' },
   { to: '/mesas',         label: 'Mesas',      icon: 'tables' },
   { to: '/sesiones',      label: 'Sesiones',   icon: 'chat' },
   { to: '/configuracion', label: 'Config',     icon: 'settings' },
@@ -22,7 +23,7 @@ export default function Sidebar({ onNavigate, restauranteNombre, rol, hasTenantC
   if (rol === 'superadmin' && !hasTenantContext) {
     items = SUPERADMIN_ITEMS;
   } else if (isRecepcionista(rol)) {
-    items = NAV_ITEMS.filter((it) => it.to === '/reservas');
+    items = NAV_ITEMS.filter((it) => ['/reservas', '/walkin'].includes(it.to));
   }
 
   return (

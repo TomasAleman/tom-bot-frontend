@@ -6,8 +6,8 @@ import EstadoBadge from '../components/EstadoBadge.jsx';
 import { fmtFechaCorta, fmtHora } from '../lib/format.js';
 import { Icon } from '../components/Icon.jsx';
 
-/** Altura máxima del gráfico (equivale a tailwind h-32). */
-const BAR_MAX_PX = 128;
+/** Altura máxima de una barra (el contenedor es h-32 = 128px; se deja margen arriba para que no toque las etiquetas). */
+const BAR_MAX_PX = 104;
 
 function barHeightPx(confirmadas, maxCount) {
   const count = confirmadas ?? 0;
@@ -29,9 +29,8 @@ export default function Dashboard() {
   }
 
   const { hoy, semana, mes, por_dia, proximas } = data;
-  const confirmadasPorDia = por_dia.map((d) => d.confirmadas ?? 0);
-  const maxConfirmadas = confirmadasPorDia.length
-    ? Math.max(...confirmadasPorDia)
+  const maxPorDia = por_dia.length
+    ? Math.max(...por_dia.map((d) => Math.max(d.confirmadas ?? 0, d.walkins ?? 0)))
     : 0;
 
   return (
@@ -49,54 +48,75 @@ export default function Dashboard() {
             {isFetching ? 'Actualizando…' : 'Actualizar'}
           </button>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard tone="brand"   title="Reservas hoy" value={hoy.confirmadas} sub={`${hoy.personas} personas`} />
           <KpiCard tone="warning" title="Canceladas hoy" value={hoy.canceladas} />
           <KpiCard tone="danger"  title="No vino hoy" value={hoy.no_show} />
-          <KpiCard                title="Personas hoy" value={hoy.personas} />
+          <KpiCard                title="Personas por reserva hoy" value={hoy.personas} />
+          <KpiCard tone="success" title="Walk-in hoy" value={hoy.walkins} sub={`${hoy.walkins_personas} personas`} />
         </div>
       </section>
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Próximos 7 días</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard title="Confirmadas" value={semana.confirmadas} sub={`${semana.personas} personas`} />
           <KpiCard title="Canceladas"  value={semana.canceladas} />
           <KpiCard title="No vino"     value={semana.no_show} />
-          <KpiCard title="Personas"    value={semana.personas} />
+          <KpiCard title="Personas por reserva" value={semana.personas} />
+          <KpiCard title="Walk-in"     value={semana.walkins} sub={`${semana.walkins_personas} personas`} />
         </div>
       </section>
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Mes en curso</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <KpiCard title="Confirmadas" value={mes.confirmadas} />
           <KpiCard title="Canceladas"  value={mes.canceladas} />
           <KpiCard title="No vino"     value={mes.no_show} />
-          <KpiCard title="Personas"    value={mes.personas} />
+          <KpiCard title="Personas por reserva" value={mes.personas} />
+          <KpiCard title="Walk-in"     value={mes.walkins} sub={`${mes.walkins_personas} personas`} />
         </div>
       </section>
 
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Últimos 14 días</h2>
-        <div className="overflow-x-auto">
-          <div className="flex h-32 min-w-full items-end gap-1.5 sm:gap-2">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Últimos 14 días</h2>
+          <div className="flex items-center gap-3 text-xs text-slate-600">
+            <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-slate-900/80" /> Reservas</span>
+            <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Walk-in</span>
+          </div>
+        </div>
+        <div className="mt-2">
+          <div className="flex h-32 items-end gap-1 sm:gap-2">
             {por_dia.map((d) => {
-              const count = d.confirmadas ?? 0;
-              const heightPx = barHeightPx(count, maxConfirmadas);
+              const confirmadas = d.confirmadas ?? 0;
+              const walkins = d.walkins ?? 0;
               return (
                 <div
                   key={d.dia}
                   className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1"
                 >
-                  <div
-                    className="w-full rounded-t bg-slate-900/80"
-                    style={{ height: heightPx }}
-                    title={`${fmtFechaCorta(d.dia)}: ${count} confirmada${count === 1 ? '' : 's'}`}
-                    role="img"
-                    aria-label={`${fmtFechaCorta(d.dia)}: ${count} reservas confirmadas`}
-                  />
-                  <span className="text-[10px] text-slate-500">{fmtFechaCorta(d.dia)}</span>
+                  <div className="flex h-full w-full items-end justify-center gap-0.5">
+                    <div
+                      className="w-1/2 rounded-t bg-slate-900/80"
+                      style={{ height: barHeightPx(confirmadas, maxPorDia) }}
+                      title={`${fmtFechaCorta(d.dia)}: ${confirmadas} reserva${confirmadas === 1 ? '' : 's'}`}
+                      role="img"
+                      aria-label={`${fmtFechaCorta(d.dia)}: ${confirmadas} reservas confirmadas`}
+                    />
+                    <div
+                      className="w-1/2 rounded-t bg-emerald-500"
+                      style={{ height: barHeightPx(walkins, maxPorDia) }}
+                      title={`${fmtFechaCorta(d.dia)}: ${walkins} walk-in${walkins === 1 ? '' : 's'}`}
+                      role="img"
+                      aria-label={`${fmtFechaCorta(d.dia)}: ${walkins} walk-ins`}
+                    />
+                  </div>
+                  <span className="whitespace-nowrap text-[9px] text-slate-500 sm:text-[10px]">
+                    <span className="hidden sm:inline">{fmtFechaCorta(d.dia)}</span>
+                    <span className="sm:hidden">{fmtFechaCorta(d.dia).split('/')[0]}</span>
+                  </span>
                 </div>
               );
             })}

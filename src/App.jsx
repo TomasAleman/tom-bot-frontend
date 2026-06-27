@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import Reservas from './pages/Reservas.jsx';
 import ReservaDetalle from './pages/ReservaDetalle.jsx';
 import Mesas from './pages/Mesas.jsx';
+import WalkIn from './pages/WalkIn.jsx';
 import Configuracion from './pages/Configuracion.jsx';
 import Sesiones from './pages/Sesiones.jsx';
 import SuperadminRestaurantes from './pages/Superadmin/Restaurantes.jsx';
@@ -70,6 +71,7 @@ export default function App() {
         <Route path="dashboard"     element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Dashboard /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
         <Route path="reservas"      element={<RequireTenantContextForSuperadmin><Reservas /></RequireTenantContextForSuperadmin>} />
         <Route path="reservas/:id"  element={<RequireTenantContextForSuperadmin><ReservaDetalle /></RequireTenantContextForSuperadmin>} />
+        <Route path="walkin"        element={<RequireTenantContextForSuperadmin><WalkIn /></RequireTenantContextForSuperadmin>} />
         <Route path="mesas"         element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Mesas /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
         <Route path="configuracion" element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Configuracion /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
         <Route path="sesiones"      element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Sesiones /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
