@@ -19,8 +19,8 @@ export default defineConfig({
         'icons/icon-mask-512.png',
       ],
       manifest: {
-        name: 'Panel Reservas',
-        short_name: 'Reservas',
+        name: 'Mesa Llena',
+        short_name: 'Mesa Llena',
         description: 'Panel para gestionar reservas del bot de WhatsApp',
         start_url: '/admin/',
         scope: '/admin/',

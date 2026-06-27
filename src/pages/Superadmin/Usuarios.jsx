@@ -17,6 +17,7 @@ export default function SuperadminUsuarios() {
     password: '',
     nombre: '',
   });
+  const [jefeRestaurantesIds, setJefeRestaurantesIds] = useState(new Set());
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const queryClient = useQueryClient();
@@ -91,12 +92,29 @@ export default function SuperadminUsuarios() {
         return { usuario: res.data?.usuario };
       }
 
+      if (rol === 'jefe') {
+        const email = String(userForm.email || '').trim().toLowerCase();
+        const password = String(userForm.password || '');
+        if (!email) throw new Error('Falta el email');
+        if (!password || password.length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
+        const payload = {
+          email,
+          password,
+          nombre: String(userForm.nombre || '').trim() || undefined,
+          rol: 'jefe',
+          restaurantes_ids: [...jefeRestaurantesIds],
+        };
+        const res = await api.post('/superadmin/usuarios', payload, { timeout: 90_000 });
+        return { usuario: res.data?.usuario };
+      }
+
       throw new Error('Rol no soportado');
     },
     onSuccess: (data) => {
       setResult(data || null);
       setError(null);
       queryClient.invalidateQueries({ queryKey: ['superadmin', 'restaurantes'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'usuarios', 'jefe'] });
     },
     onError: (err) => {
       setResult(null);
@@ -112,7 +130,8 @@ export default function SuperadminUsuarios() {
     !mut.isPending &&
     (
       (rol === 'admin_restaurante' && restNombreOk && evoKeyOk && trimmedEmail.length > 0 && passLen >= 8) ||
-      (rol === 'recepcionista' && Number(userForm.restaurante_id) > 0 && trimmedEmail.length > 0 && passLen >= 8)
+      (rol === 'recepcionista' && Number(userForm.restaurante_id) > 0 && trimmedEmail.length > 0 && passLen >= 8) ||
+      (rol === 'jefe' && trimmedEmail.length > 0 && passLen >= 8)
     );
 
   return (
@@ -126,6 +145,7 @@ export default function SuperadminUsuarios() {
             <Select value={rol} onChange={(e) => setRol(e.target.value)}>
               <option value="admin_restaurante">Admin restaurante</option>
               <option value="recepcionista">Recepcionista (solo lectura)</option>
+              <option value="jefe">Jefe multi-sucursal (solo dashboard)</option>
             </Select>
           </div>
 
@@ -182,6 +202,34 @@ export default function SuperadminUsuarios() {
             </div>
           )}
 
+          {rol === 'jefe' && (
+            <div className="sm:col-span-2">
+              <Label>Sucursales que puede ver (opcional, se puede ajustar después)</Label>
+              <ul className="mt-1 max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                {restaurantes.map((r) => (
+                  <li key={r.id}>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={jefeRestaurantesIds.has(r.id)}
+                        onChange={() => {
+                          setJefeRestaurantesIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(r.id)) next.delete(r.id);
+                            else next.add(r.id);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span>#{r.id} · {r.nombre}</span>
+                    </label>
+                  </li>
+                ))}
+                {restaurantes.length === 0 && <li className="text-sm text-slate-500">No hay restaurantes creados todavía.</li>}
+              </ul>
+            </div>
+          )}
+
           <div>
             <Label>Email</Label>
             <Input value={userForm.email} onChange={(e) => setUserForm((s) => ({ ...s, email: e.target.value }))} />
@@ -230,7 +278,94 @@ export default function SuperadminUsuarios() {
           </div>
         )}
       </section>
+
+      <GestionJefes restaurantes={restaurantes} />
     </div>
   );
 }
 
+function GestionJefes({ restaurantes }) {
+  const queryClient = useQueryClient();
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['superadmin', 'usuarios', 'jefe'],
+    queryFn: async () => (await api.get('/superadmin/usuarios?rol=jefe')).data,
+  });
+
+  const jefes = data?.data || [];
+
+  return (
+    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <h3 className="text-sm font-semibold text-slate-800">Jefes existentes · sucursales asignadas</h3>
+      <p className="mt-1 text-xs text-slate-500">
+        Tildá o destildá sucursales y guardá: cubre agregar y quitar en una sola operación.
+      </p>
+
+      {isLoading ? (
+        <p className="mt-3 text-sm text-slate-500">Cargando…</p>
+      ) : isError ? (
+        <p className="mt-3 text-sm text-rose-600">Error: {apiError(error)}</p>
+      ) : jefes.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-500">Todavía no hay usuarios jefe creados.</p>
+      ) : (
+        <ul className="mt-3 space-y-3">
+          {jefes.map((j) => (
+            <JefeCard
+              key={j.id}
+              jefe={j}
+              restaurantes={restaurantes}
+              onSaved={() => queryClient.invalidateQueries({ queryKey: ['superadmin', 'usuarios', 'jefe'] })}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function JefeCard({ jefe, restaurantes, onSaved }) {
+  const [seleccion, setSeleccion] = useState(() => new Set((jefe.restaurantes || []).map((r) => r.id)));
+  const [savedAt, setSavedAt] = useState(null);
+
+  const mut = useMutation({
+    mutationFn: () => api.put(`/superadmin/usuarios/${jefe.id}/restaurantes`, { restaurantes_ids: [...seleccion] }),
+    onSuccess: () => { setSavedAt(new Date()); onSaved?.(); },
+  });
+
+  return (
+    <li className="rounded-xl border border-slate-200 p-3">
+      <p className="text-sm font-medium text-slate-900">{jefe.nombre || jefe.email}</p>
+      <p className="text-xs text-slate-500">{jefe.email}</p>
+      <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+        {restaurantes.map((r) => (
+          <li key={r.id}>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={seleccion.has(r.id)}
+                onChange={() => {
+                  setSeleccion((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(r.id)) next.delete(r.id);
+                    else next.add(r.id);
+                    return next;
+                  });
+                }}
+              />
+              <span>#{r.id} · {r.nombre}</span>
+            </label>
+          </li>
+        ))}
+        {restaurantes.length === 0 && <li className="text-sm text-slate-500">No hay restaurantes creados todavía.</li>}
+      </ul>
+      <div className="mt-2 flex items-center gap-2">
+        <Button variant="secondary" onClick={() => mut.mutate()} disabled={mut.isPending}>
+          {mut.isPending ? 'Guardando…' : 'Guardar sucursales'}
+        </Button>
+        {savedAt && !mut.isPending && (
+          <span className="text-xs text-emerald-700">Guardado {savedAt.toLocaleTimeString()}</span>
+        )}
+        <ErrorText>{mut.error ? apiError(mut.error) : null}</ErrorText>
+      </div>
+    </li>
+  );
+}

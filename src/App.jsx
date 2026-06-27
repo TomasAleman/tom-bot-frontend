@@ -11,7 +11,7 @@ import Configuracion from './pages/Configuracion.jsx';
 import Sesiones from './pages/Sesiones.jsx';
 import SuperadminRestaurantes from './pages/Superadmin/Restaurantes.jsx';
 import SuperadminUsuarios from './pages/Superadmin/Usuarios.jsx';
-import { homePathForRol, isRecepcionista } from './lib/roles.js';
+import { homePathForRol, isRecepcionista, isJefe } from './lib/roles.js';
 
 function Loading() {
   return (
@@ -31,6 +31,13 @@ function ProtectedRoute({ children }) {
 function RequireNotRecepcionista({ children }) {
   const { usuario } = useAuth();
   if (isRecepcionista(usuario?.rol)) return <Navigate to="/reservas" replace />;
+  return children;
+}
+
+/** Jefe multi-sucursal: solo lectura de Dashboard, sin acceso al resto del panel. */
+function RequireNotJefe({ children }) {
+  const { usuario } = useAuth();
+  if (isJefe(usuario?.rol)) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -69,12 +76,12 @@ export default function App() {
       >
         <Route index element={<DefaultHomeRedirect />} />
         <Route path="dashboard"     element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Dashboard /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
-        <Route path="reservas"      element={<RequireTenantContextForSuperadmin><Reservas /></RequireTenantContextForSuperadmin>} />
-        <Route path="reservas/:id"  element={<RequireTenantContextForSuperadmin><ReservaDetalle /></RequireTenantContextForSuperadmin>} />
-        <Route path="walkin"        element={<RequireTenantContextForSuperadmin><WalkIn /></RequireTenantContextForSuperadmin>} />
-        <Route path="mesas"         element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Mesas /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
-        <Route path="configuracion" element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Configuracion /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
-        <Route path="sesiones"      element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><Sesiones /></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
+        <Route path="reservas"      element={<RequireTenantContextForSuperadmin><RequireNotJefe><Reservas /></RequireNotJefe></RequireTenantContextForSuperadmin>} />
+        <Route path="reservas/:id"  element={<RequireTenantContextForSuperadmin><RequireNotJefe><ReservaDetalle /></RequireNotJefe></RequireTenantContextForSuperadmin>} />
+        <Route path="walkin"        element={<RequireTenantContextForSuperadmin><RequireNotJefe><WalkIn /></RequireNotJefe></RequireTenantContextForSuperadmin>} />
+        <Route path="mesas"         element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><RequireNotJefe><Mesas /></RequireNotJefe></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
+        <Route path="configuracion" element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><RequireNotJefe><Configuracion /></RequireNotJefe></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
+        <Route path="sesiones"      element={<RequireTenantContextForSuperadmin><RequireNotRecepcionista><RequireNotJefe><Sesiones /></RequireNotJefe></RequireNotRecepcionista></RequireTenantContextForSuperadmin>} />
 
         <Route path="superadmin/restaurantes" element={<RequireSuperadmin><SuperadminRestaurantes /></RequireSuperadmin>} />
         <Route path="superadmin/usuarios" element={<RequireSuperadmin><SuperadminUsuarios /></RequireSuperadmin>} />

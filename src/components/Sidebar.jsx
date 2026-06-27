@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import clsx from 'clsx';
 import { Icon } from './Icon.jsx';
 import AppLogo from './AppLogo.jsx';
-import { isRecepcionista } from '../lib/roles.js';
+import { isRecepcionista, isJefe } from '../lib/roles.js';
 
 const NAV_ITEMS = [
   { to: '/dashboard',     label: 'Dashboard',  icon: 'dashboard' },
@@ -24,6 +24,8 @@ export default function Sidebar({ onNavigate, restauranteNombre, rol, hasTenantC
     items = SUPERADMIN_ITEMS;
   } else if (isRecepcionista(rol)) {
     items = NAV_ITEMS.filter((it) => ['/reservas', '/walkin'].includes(it.to));
+  } else if (isJefe(rol)) {
+    items = NAV_ITEMS.filter((it) => it.to === '/dashboard');
   }
 
   return (
@@ -31,9 +33,13 @@ export default function Sidebar({ onNavigate, restauranteNombre, rol, hasTenantC
       <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-4 pt-[max(env(safe-area-inset-top),1.25rem)]">
         <AppLogo size={40} className="h-10 w-10 flex-shrink-0" />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900">Panel Reservas</p>
+          <p className="truncate text-sm font-semibold text-slate-900">Mesa Llena</p>
           <p className="truncate text-xs text-slate-500">
-            {rol === 'superadmin' && !hasTenantContext ? 'Superadmin' : (restauranteNombre || '—')}
+            {rol === 'superadmin' && !hasTenantContext
+              ? 'Superadmin'
+              : isJefe(rol)
+                ? 'Jefe multi-sucursal'
+                : (restauranteNombre || '—')}
           </p>
         </div>
       </div>

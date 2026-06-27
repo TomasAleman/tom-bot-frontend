@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiError } from '../lib/api.js';
-import { Input, Button, ErrorText } from '../components/Field.jsx';
+import { Input, Select, Button, ErrorText } from '../components/Field.jsx';
 import { Icon } from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
 import { fmtTimestamp } from '../lib/format.js';
@@ -42,8 +42,8 @@ export default function WalkIn() {
 
   const mesasOcupadas = useMemo(() => {
     const set = new Set();
-    for (const w of items) (w.mesas || []).forEach((m) => set.add(m));
-    for (const r of asistenciaHoy.data?.data || []) (r.mesas || []).forEach((m) => set.add(m));
+    for (const w of items) (w.mesas_ids || []).forEach((id) => set.add(id));
+    for (const r of asistenciaHoy.data?.data || []) (r.mesas_ids || []).forEach((id) => set.add(id));
     return set;
   }, [items, asistenciaHoy.data]);
 
@@ -80,7 +80,7 @@ export default function WalkIn() {
             <li key={w.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-900">{(w.mesas || []).join(', ')}</p>
+                  <p className="text-sm font-semibold text-slate-900">Mesa {(w.mesas || []).join(', ')}</p>
                   <p className="text-xs text-slate-500">{w.personas} personas · {fmtTimestamp(w.hora_ingreso)}</p>
                 </div>
                 <div className="flex shrink-0 gap-2">
@@ -142,23 +142,27 @@ export default function WalkIn() {
 
 function WalkInModal({ open, onClose, mesas, mesasOcupadas, walkin, onSaved }) {
   const esEdicion = Boolean(walkin);
-  const [seleccion, setSeleccion] = useState(() => new Set(walkin?.mesas || []));
+  const [seleccion, setSeleccion] = useState(() => new Set(walkin?.mesas_ids || []));
   const [personas, setPersonas] = useState(walkin?.personas ?? 2);
   const [error, setError] = useState(null);
+  const [filtroSector, setFiltroSector] = useState('');
+  const [filtroTexto, setFiltroTexto] = useState('');
 
   // Reinicia el formulario cada vez que se abre (alta nueva o edición de otro walk-in).
   const keyAbierto = `${open}-${walkin?.id ?? 'nuevo'}`;
   const [ultimaKey, setUltimaKey] = useState(keyAbierto);
   if (keyAbierto !== ultimaKey) {
     setUltimaKey(keyAbierto);
-    setSeleccion(new Set(walkin?.mesas || []));
+    setSeleccion(new Set(walkin?.mesas_ids || []));
     setPersonas(walkin?.personas ?? 2);
     setError(null);
+    setFiltroSector('');
+    setFiltroTexto('');
   }
 
   const mut = useMutation({
     mutationFn: async () => {
-      const payload = { mesas: [...seleccion], personas: Number(personas) };
+      const payload = { mesas_ids: [...seleccion], personas: Number(personas) };
       if (esEdicion) {
         const { data } = await api.patch(`/walkins/${walkin.id}`, payload);
         return data;
@@ -170,8 +174,22 @@ function WalkInModal({ open, onClose, mesas, mesasOcupadas, walkin, onSaved }) {
     onError: (err) => setError(err),
   });
 
-  const sumMin = mesas.filter((m) => seleccion.has(m.numero_mesa)).reduce((s, m) => s + m.min_personas, 0);
-  const sumMax = mesas.filter((m) => seleccion.has(m.numero_mesa)).reduce((s, m) => s + m.max_personas, 0);
+  const sectoresDisponibles = useMemo(
+    () => [...new Set(mesas.map((m) => m.sector_nombre).filter(Boolean))].sort(),
+    [mesas],
+  );
+
+  const mesasFiltradas = useMemo(() => {
+    const texto = filtroTexto.trim().toLowerCase();
+    return mesas.filter((m) => {
+      if (filtroSector && m.sector_nombre !== filtroSector) return false;
+      if (texto && !m.numero_mesa.toLowerCase().includes(texto)) return false;
+      return true;
+    });
+  }, [mesas, filtroSector, filtroTexto]);
+
+  const sumMin = mesas.filter((m) => seleccion.has(m.id)).reduce((s, m) => s + m.min_personas, 0);
+  const sumMax = mesas.filter((m) => seleccion.has(m.id)).reduce((s, m) => s + m.max_personas, 0);
   const personasNum = Number(personas || 0);
   const avisoCapacidad = seleccion.size > 0 && (personasNum < sumMin || personasNum > sumMax);
 
@@ -209,20 +227,33 @@ function WalkInModal({ open, onClose, mesas, mesasOcupadas, walkin, onSaved }) {
           <label className="block text-xs font-medium text-slate-600">
             Mesa(s) — tildá una o varias si se juntaron
           </label>
-          <ul className="mt-1 max-h-56 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
-            {mesas.map((m) => {
-              const ocupada = mesasOcupadas.has(m.numero_mesa) && !seleccion.has(m.numero_mesa);
+          <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Select value={filtroSector} onChange={(e) => setFiltroSector(e.target.value)}>
+              <option value="">Todos los sectores</option>
+              {sectoresDisponibles.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </Select>
+            <Input
+              placeholder="Buscar mesa…"
+              value={filtroTexto}
+              onChange={(e) => setFiltroTexto(e.target.value)}
+            />
+          </div>
+          <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+            {mesasFiltradas.map((m) => {
+              const ocupada = mesasOcupadas.has(m.id) && !seleccion.has(m.id);
               return (
-                <li key={m.numero_mesa}>
+                <li key={m.id}>
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={seleccion.has(m.numero_mesa)}
+                      checked={seleccion.has(m.id)}
                       onChange={() => {
                         setSeleccion((prev) => {
                           const next = new Set(prev);
-                          if (next.has(m.numero_mesa)) next.delete(m.numero_mesa);
-                          else next.add(m.numero_mesa);
+                          if (next.has(m.id)) next.delete(m.id);
+                          else next.add(m.id);
                           return next;
                         });
                       }}
@@ -242,6 +273,9 @@ function WalkInModal({ open, onClose, mesas, mesasOcupadas, walkin, onSaved }) {
               );
             })}
             {mesas.length === 0 && <li className="text-sm text-slate-500">No hay mesas activas configuradas.</li>}
+            {mesas.length > 0 && mesasFiltradas.length === 0 && (
+              <li className="text-sm text-slate-500">Ninguna mesa coincide con el filtro.</li>
+            )}
           </ul>
         </div>
 

@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, apiError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { Button, Input, Select, Label, ErrorText } from '../components/Field.jsx';
+
+const GRUPO_NEGOCIO = ['NombreRestaurante', 'ToleranciaNoShowMinutos', 'RecordatorioConfirmacionHoras', 'DiasMaxAnticipacion'];
+const GRUPO_BLOQUEOS = ['AvisarBloqueo', 'MensajesMaxSinCompletar', 'BloqueoInicialMinutos', 'BloqueMaximoMinutos'];
 
 function valorInicialDeForm(parametro, valor, schema) {
   const def = schema?.[parametro];
@@ -44,6 +47,26 @@ function validarParaEnvio(parametro, valorForm, schema) {
     return { ok: true, valor: s };
   }
   return { ok: false, error: 'tipo desconocido' };
+}
+
+/** Payload + errores solo de los campos del grupo que cambiaron respecto al valor guardado. */
+function construirPayloadGrupo(grupoKeys, form, config, schema) {
+  const payload = {};
+  const errs = {};
+  for (const k of grupoKeys) {
+    if (!schema[k]) continue;
+    const original = valorInicialDeForm(k, config[k]?.valor, schema);
+    const actual = form[k] ?? '';
+    if (String(original) === String(actual)) continue;
+
+    const r = validarParaEnvio(k, actual, schema);
+    if (!r.ok) {
+      errs[k] = r.error;
+      continue;
+    }
+    payload[k] = r.valor;
+  }
+  return { payload, errs };
 }
 
 export default function Configuracion() {
@@ -89,9 +112,12 @@ export default function Configuracion() {
   const config = data?.config || {};
 
   const [form, setForm] = useState({});
-  const [savedAt, setSavedAt] = useState(null);
-  const [errMsg, setErrMsg] = useState(null);
   const [errPorClave, setErrPorClave] = useState({});
+
+  const [negocioSavedAt, setNegocioSavedAt] = useState(null);
+  const [negocioErrMsg, setNegocioErrMsg] = useState(null);
+  const [bloqueosSavedAt, setBloqueosSavedAt] = useState(null);
+  const [bloqueosErrMsg, setBloqueosErrMsg] = useState(null);
 
   useEffect(() => {
     if (!data) return;
@@ -102,17 +128,35 @@ export default function Configuracion() {
     setForm(next);
   }, [data]);
 
-  const guardarMut = useMutation({
+  const limpiarErroresGrupo = (grupoKeys) => {
+    setErrPorClave((prev) => {
+      const next = { ...prev };
+      for (const k of grupoKeys) delete next[k];
+      return next;
+    });
+  };
+
+  const guardarNegocioMut = useMutation({
     mutationFn: (payload) => api.patch('/config', payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['config'] });
-      setSavedAt(new Date());
-      setErrPorClave({});
+      setNegocioSavedAt(new Date());
+      limpiarErroresGrupo(GRUPO_NEGOCIO);
+      setNegocioErrMsg(null);
     },
-    onError: (err) => setErrMsg(apiError(err, 'No se pudo guardar')),
+    onError: (err) => setNegocioErrMsg(apiError(err, 'No se pudo guardar')),
   });
 
-  const claves = useMemo(() => Object.keys(schema).sort(), [schema]);
+  const guardarBloqueosMut = useMutation({
+    mutationFn: (payload) => api.patch('/config', payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['config'] });
+      setBloqueosSavedAt(new Date());
+      limpiarErroresGrupo(GRUPO_BLOQUEOS);
+      setBloqueosErrMsg(null);
+    },
+    onError: (err) => setBloqueosErrMsg(apiError(err, 'No se pudo guardar')),
+  });
 
   if (isLoading) return <p className="text-sm text-slate-500">Cargando configuración…</p>;
   if (isError) return <p className="text-sm text-rose-600">Error: {apiError(error)}</p>;
@@ -137,38 +181,27 @@ export default function Configuracion() {
     });
   };
 
-  const onGuardar = (e) => {
+  const onGuardarGrupo = (grupoKeys, setErrMsg, mut) => (e) => {
     e?.preventDefault?.();
     setErrMsg(null);
-    const payload = {};
-    const errs = {};
-
-    for (const k of claves) {
-      const original = valorInicialDeForm(k, config[k]?.valor, schema);
-      const actual = form[k] ?? '';
-      if (String(original) === String(actual)) continue;
-
-      const r = validarParaEnvio(k, actual, schema);
-      if (!r.ok) {
-        errs[k] = r.error;
-        continue;
-      }
-      payload[k] = r.valor;
-    }
+    const { payload, errs } = construirPayloadGrupo(grupoKeys, form, config, schema);
 
     if (Object.keys(errs).length > 0) {
-      setErrPorClave(errs);
+      setErrPorClave((prev) => ({ ...prev, ...errs }));
       setErrMsg('Revisá los campos marcados.');
       return;
     }
-    setErrPorClave({});
+    limpiarErroresGrupo(grupoKeys);
 
     if (Object.keys(payload).length === 0) {
       setErrMsg('No hay cambios para guardar.');
       return;
     }
-    guardarMut.mutate(payload);
+    mut.mutate(payload);
   };
+
+  const onGuardarNegocio = onGuardarGrupo(GRUPO_NEGOCIO, setNegocioErrMsg, guardarNegocioMut);
+  const onGuardarBloqueos = onGuardarGrupo(GRUPO_BLOQUEOS, setBloqueosErrMsg, guardarBloqueosMut);
 
   const renderInput = (k) => {
     const def = schema[k];
@@ -226,55 +259,58 @@ export default function Configuracion() {
     );
   };
 
+  const renderSeccionGrupo = (titulo, grupoKeys, onGuardarGrupoFn, mut, savedAt, errMsg) => {
+    const keysPresentes = grupoKeys.filter((k) => schema[k]);
+    return (
+      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <h2 className="text-sm font-semibold text-slate-800">{titulo}</h2>
+        <form onSubmit={onGuardarGrupoFn} className="space-y-3">
+          {keysPresentes.length === 0 ? (
+            <p className="text-sm text-slate-500">No hay parámetros configurables en esta sección.</p>
+          ) : (
+            <ul className="space-y-3">
+              {keysPresentes.map((k) => {
+                const def = schema[k];
+                return (
+                  <li key={k}>
+                    <Label htmlFor={`c-${k}`}>{def.label || k}</Label>
+                    {renderInput(k)}
+                    {def.descripcion ? (
+                      <p className="mt-1 text-xs text-slate-500">{def.descripcion}</p>
+                    ) : null}
+                    {errPorClave[k] ? (
+                      <p className="mt-1 text-xs text-rose-600">{errPorClave[k]}</p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <ErrorText>{errMsg}</ErrorText>
+
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+            <Button type="submit" disabled={mut.isPending}>
+              {mut.isPending ? 'Guardando…' : 'Guardar'}
+            </Button>
+            {savedAt && !mut.isPending && (
+              <span className="text-xs text-emerald-700">
+                Guardado {savedAt.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+        </form>
+      </section>
+    );
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-600">
-          {claves.length} parámetros configurables.
-        </p>
-      </div>
-
-      <form onSubmit={onGuardar} className="space-y-3">
-        {claves.length === 0 ? (
-          <p className="rounded-2xl bg-white p-8 text-center text-sm text-slate-500 ring-1 ring-slate-200">
-            El catálogo de parámetros está vacío.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {claves.map((k) => {
-              const def = schema[k];
-              return (
-                <li key={k} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                  <Label htmlFor={`c-${k}`}>{def.label || k}</Label>
-                  {renderInput(k)}
-                  {def.descripcion ? (
-                    <p className="mt-1 text-xs text-slate-500">{def.descripcion}</p>
-                  ) : null}
-                  {errPorClave[k] ? (
-                    <p className="mt-1 text-xs text-rose-600">{errPorClave[k]}</p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        <ErrorText>{errMsg}</ErrorText>
-
-        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-          <Button type="submit" disabled={guardarMut.isPending}>
-            {guardarMut.isPending ? 'Guardando…' : 'Guardar cambios'}
-          </Button>
-          {savedAt && !guardarMut.isPending && (
-            <span className="text-xs text-emerald-700">
-              Guardado {savedAt.toLocaleTimeString()}
-            </span>
-          )}
-        </div>
-      </form>
+      {renderSeccionGrupo('Negocio', GRUPO_NEGOCIO, onGuardarNegocio, guardarNegocioMut, negocioSavedAt, negocioErrMsg)}
+      {renderSeccionGrupo('Bloqueos', GRUPO_BLOQUEOS, onGuardarBloqueos, guardarBloqueosMut, bloqueosSavedAt, bloqueosErrMsg)}
 
       {puedeEditarMenu ? (
-        <section className="mt-8 space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
           <h2 className="text-sm font-semibold text-slate-800">Menú (WhatsApp)</h2>
           <p className="text-xs text-slate-500">
             Enlace al menú del restaurante y si el bot debe mostrar la opción «Ver el menú» en el mensaje de bienvenida.

@@ -52,7 +52,7 @@ export default function Login() {
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-center">
           <AppLogo size={56} className="mb-3 h-14 w-14" />
-          <h1 className="text-xl font-semibold text-slate-900">Panel Reservas</h1>
+          <h1 className="text-xl font-semibold text-slate-900">Mesa Llena</h1>
           <p className="mt-1 text-sm text-slate-500">Ingresá con tus credenciales del restaurante</p>
         </div>
         <form onSubmit={onSubmit} className="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">

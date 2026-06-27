@@ -293,7 +293,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
     mesasGrandesOpciones.length >= 1;
 
   const selModels = useMemo(
-    () => libres.filter((m) => junteSel.includes(m.numero_mesa)),
+    () => libres.filter((m) => junteSel.includes(m.mesa_id)),
     [libres, junteSel],
   );
   const sumMinSel = selModels.reduce((s, m) => s + m.min_personas, 0);
@@ -374,7 +374,9 @@ function EditModal({ open, onClose, reserva, onSaved }) {
           dia: diaIso,
           personas: personasNum,
           horario: fmtHora(horarioNum),
-          mesas: [...junteSel].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })),
+          mesas_ids: [...selModels]
+            .sort((a, b) => String(a.numero_mesa).localeCompare(String(b.numero_mesa), undefined, { numeric: true }))
+            .map((m) => m.mesa_id),
         };
         if (nombreChanged) payload.nombre = nombreTrim;
         const { data } = await api.patch(`/reservas/${reserva.id}`, payload);
@@ -389,7 +391,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
           dia: diaIso,
           personas: personasNum,
           horario: fmtHora(horarioNum),
-          numero_mesa: mesaGrandeElegida,
+          mesa_id: mesaGrandeElegida,
         };
         if (nombreChanged) payload.nombre = nombreTrim;
         const { data } = await api.patch(`/reservas/${reserva.id}`, payload);
@@ -539,13 +541,13 @@ function EditModal({ open, onClose, reserva, onSaved }) {
                 <p className="text-xs font-medium">Elegí una mesa (cupo máximo ≥ {personas} pers.)</p>
                 <ul className="max-h-40 space-y-1 overflow-y-auto">
                   {mesasGrandesOpciones.map((m) => (
-                      <li key={m.numero_mesa}>
+                      <li key={m.mesa_id}>
                         <label className="flex cursor-pointer items-center gap-2 text-xs">
                           <input
                             type="radio"
                             name="mesa-grande-ed"
-                            checked={mesaGrandeElegida === m.numero_mesa}
-                            onChange={() => setMesaGrandeElegida(m.numero_mesa)}
+                            checked={mesaGrandeElegida === m.mesa_id}
+                            onChange={() => setMesaGrandeElegida(m.mesa_id)}
                           />
                           <span>
                             Mesa <strong>{m.numero_mesa}</strong> ({m.min_personas}–{m.max_personas} pers.)
@@ -587,7 +589,7 @@ function EditModal({ open, onClose, reserva, onSaved }) {
                   {libresJunte.map((m) => {
                     const bloqueadoSector = sectorJunte != null && m.sector_id !== sectorJunte;
                     return (
-                    <li key={m.numero_mesa}>
+                    <li key={m.mesa_id}>
                       <label
                         className={`flex items-center gap-2 text-xs ${bloqueadoSector ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                         title={bloqueadoSector ? 'Solo se pueden juntar mesas del mismo sector' : undefined}
@@ -595,12 +597,12 @@ function EditModal({ open, onClose, reserva, onSaved }) {
                         <input
                           type="checkbox"
                           disabled={bloqueadoSector}
-                          checked={junteSel.includes(m.numero_mesa)}
+                          checked={junteSel.includes(m.mesa_id)}
                           onChange={() => {
                             setJunteSel((prev) => (
-                              prev.includes(m.numero_mesa)
-                                ? prev.filter((x) => x !== m.numero_mesa)
-                                : [...prev, m.numero_mesa]
+                              prev.includes(m.mesa_id)
+                                ? prev.filter((x) => x !== m.mesa_id)
+                                : [...prev, m.mesa_id]
                             ));
                           }}
                         />
